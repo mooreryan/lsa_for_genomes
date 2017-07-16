@@ -15,6 +15,20 @@ module Aai
   extend Aai::Utils
 end
 
+module Lsa
+  VERSION   = "0.1.0"
+  COPYRIGHT = "2017 Ryan Moore"
+  CONTACT   = "moorer@udel.edu"
+  WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
+  LICENSE   = "MIT"
+
+  VERSION_BANNER = "  # Version: #{VERSION}
+  # Copyright #{COPYRIGHT}
+  # Contact: #{CONTACT}
+  # Website: #{WEBSITE}
+  # License: #{LICENSE}"
+end
+
 def abort_unless_command exe
   abort_unless_file_exists exe
 
@@ -32,7 +46,11 @@ end
 THIS_DIR = File.join File.dirname __FILE__
 
 opts = Trollop.options do
+  version Lsa::VERSION_BANNER
+
   banner <<-EOS
+
+#{Lsa::VERSION_BANNER}
 
   Latent semantic analysis pipeline for genomes and metagenomes.
 
@@ -45,6 +63,9 @@ opts = Trollop.options do
   opt(:bin_dir,
       "Folder with the LSA scripts and binaries",
       default: File.join(THIS_DIR, "bin"))
+  opt(:mmseqs,
+      "Location of the mmseqs binary",
+      default: File.join(Dir.home, "bin", "mmseqs"))
 
   opt(:infiles,
       "Files with ORF clusters",
@@ -61,11 +82,10 @@ opts = Trollop.options do
   opt(:num_topics,
       "The number of topics to calculate for LSA",
       default: 20)
-
-  # opt(:force,
-  #     "Overwrite contents of outdir",
-  #     default: false)
 end
+
+abort_unless Dir.exist?(opts[:bin_dir]),
+             "The directory specified by --bin-dir doesn't exist"
 
 ######################################################################
 # check commands
@@ -76,11 +96,13 @@ prep_seq_files = File.join opts[:bin_dir], "prep_seq_files.rb"
 cluster = File.join opts[:bin_dir], "cluster.rb"
 td_matrix = File.join opts[:bin_dir], "td_matrix"
 lsa_py = File.join opts[:bin_dir], "lsa.py"
+mmseqs = opts[:mmseqs]
 
 abort_unless_command prep_seq_files
 abort_unless_command cluster
 abort_unless_command td_matrix
 abort_unless_command lsa_py
+abort_unless_command mmseqs
 
 ################
 # check commands
@@ -169,7 +191,7 @@ end
 if all_files_exist? mmseqs_outfiles
   AbortIf.logger.info { "Clustering already done, skipping" }
 else
-  cmd = "#{cluster} #{opts[:cpus]} #{prepped_seq_files} 1>> #{outf} 2>> #{errf}"
+  cmd = "#{cluster} #{mmseqs} #{opts[:cpus]} #{prepped_seq_files} 1>> #{outf} 2>> #{errf}"
   Process.run_and_time_it! "Clustering ORFs", cmd
 end
 
