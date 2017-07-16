@@ -10,9 +10,9 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger()
 
-NUM_TOPICS = 20
+NUM_TOPICS = int(sys.argv[1])
 
-td_matrix_fname = sys.argv[1]
+td_matrix_fname = sys.argv[2]
 transformed_doc_matrix_fname = td_matrix_fname + ".lsa_py.transformed_doc_matrix.txt"
 transformed_doc_dist_matrix_fname = td_matrix_fname + ".lsa_py.transformed_doc_dist.txt"
 rows_are_terms_fname = td_matrix_fname + ".lsa_py.rows_are_terms.txt"
@@ -28,7 +28,7 @@ corpus = corpora.MmCorpus(td_matrix_fname)
 try:
     idx2term = {}
 
-    idx2term_fname = sys.argv[2]
+    idx2term_fname = sys.argv[3]
     with open(idx2term_fname, "U") as f:
         for line in f:
             (idx, term) = line.split()

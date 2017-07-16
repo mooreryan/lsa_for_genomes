@@ -34,7 +34,10 @@ THIS_DIR = File.join File.dirname __FILE__
 opts = Trollop.options do
   banner <<-EOS
 
-  Latent semantic analysis pipeline for genomes and metagenomes
+  Latent semantic analysis pipeline for genomes and metagenomes.
+
+  --num-topics is the LIMIT on topics. You may see fewer depending on
+    the data.
 
   Options:
   EOS
@@ -54,6 +57,10 @@ opts = Trollop.options do
   opt(:cpus,
       "Number of CPUs to use",
       default: 3)
+
+  opt(:num_topics,
+      "The number of topics to calculate for LSA",
+      default: 20)
 
   # opt(:force,
   #     "Overwrite contents of outdir",
@@ -180,7 +187,7 @@ end
 if all_files_exist? lsa_py_outfiles
   AbortIf.logger.info { "LSA tranform already done, skipping" }
 else
-  cmd = "#{lsa_py} #{td_matrix_outf} #{idx_to_term_outf} 1>> #{outf} 2>> #{errf}"
+  cmd = "#{lsa_py} #{opts[:num_topics]} #{td_matrix_outf} #{idx_to_term_outf} 1>> #{outf} 2>> #{errf}"
   Process.run_and_time_it! "Running the LSA transform", cmd
 end
 
