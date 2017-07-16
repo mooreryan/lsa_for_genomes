@@ -107,13 +107,17 @@ td_matrix_outfiles = [
   idx_to_term_outf,
 ]
 
+lsa_py_dist_outf = "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt"
 lsa_py_outfiles = [
   "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.rows_are_terms.txt",
   "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.singular_values.txt",
   "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt",
-  "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt",
+  lsa_py_dist_outf,
   "#{prepped_seq_files}.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_matrix.txt",
 ]
+
+tmp_r_script_fname = File.join opts[:outdir], "make_tree.r"
+newick_outf = lsa_py_dist_outf + ".newick.txt"
 
 outf = File.join opts[:outdir], "lsa_out.txt"
 errf = File.join opts[:outdir], "lsa_err.txt"
@@ -179,6 +183,36 @@ else
   cmd = "#{lsa_py} #{td_matrix_outf} #{idx_to_term_outf} 1>> #{outf} 2>> #{errf}"
   Process.run_and_time_it! "Running the LSA transform", cmd
 end
+
+# Make the R script for the tree
+
+idx2doc = {}
+File.open(idx_to_doc_outf, "rt").each_line do |line|
+  idx, doc = line.chomp.split "\t"
+
+  idx2doc[idx] = doc
+end
+
+col_names = idx2doc.
+            sort_by { |idx, doc| idx }.
+            map { |idx, doc| "\"#{doc}\"" }.
+            join ", "
+
+rscript_str = %Q{
+library("ape")
+
+transformed.doc.dist <- as.dist(read.table("#{lsa_py_dist_outf}", col.names=c(#{col_names})))
+transformed.doc.dist.tree <- as.phylo(hclust(transformed.doc.dist, method="average"))
+
+write.tree(transformed.doc.dist.tree, file="#{newick_outf}")
+}
+
+File.open(tmp_r_script_fname, "w") do |f|
+  f.puts rscript_str
+end
+
+cmd = "Rscript #{tmp_r_script_fname}"
+Process.run_and_time_it! "Making tree", cmd
 
 ##################
 # run the pipeline

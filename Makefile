@@ -42,3 +42,6 @@ test_pre:
 
 test_lsa:
 	rm -r lsa_output/; time ./lsa.rb -i test_files/small/*
+
+test_lsa_full:
+	rm -r lsa_output/; time ./lsa.rb -i test_files/*.faa.gz
