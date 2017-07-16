@@ -19,3 +19,5 @@ ARGV.each do |fname|
     puts rec.seq
   end
 end
+
+AbortIf.logger.info { "#{__FILE__} done!" }

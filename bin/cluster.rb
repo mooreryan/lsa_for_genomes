@@ -32,3 +32,5 @@ cmd = "sort #{fasta}.clu.tsv > #{fasta}.clu.tsv.sorted"
 Process.run_and_time_it! "Sort tsv file", cmd
 
 Process.run_it! "rm -r #{tmp_dir}"
+
+AbortIf.logger.info { "#{__FILE__} done!" }

@@ -1,3 +1,4 @@
 .DS_Store
-bin
+bin/td_matrix*
+lsa_output
 vendor/*.o

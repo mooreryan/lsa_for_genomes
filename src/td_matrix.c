@@ -521,6 +521,13 @@ int main(int argc, char *argv[])
   /* NEXT STEP: print outputs to named files */
 
   /* Clean up */
+  PANIC_UNLESS(remove(tmp_sort_out) == 0,
+               errno,
+               stderr,
+               "Could not remove file '%s' (errno: %s)",
+               tmp_sort_out,
+               strerror(errno));
+
   fprintf(stderr, "LOG -- cleaning up\n");
   HASHLIN_DONE(doc_counts, kv_free);
   HASHLIN_DONE(doc2idx, kv_free);

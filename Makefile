@@ -35,10 +35,10 @@ $(MAIN): $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
 
 test: $(MAIN)
-	rm test_files/test.clu.tsv.*; valgrind --leak-check=full $(BIN)/$(MAIN) test_files/test.clu.tsv
+	rm test_files/test.clu.tsv.*; valgrind --leak-check=full $(BIN)/$(MAIN) test_files/test.clu.tsv && rm test_files/test.clu.tsv.*
 
 test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa
 
-test_pipeline: $(MAIN)
-	rm $(REAL_D)/*.seanie_lsa.* $(REAL_D)/*.clean; ruby prep_seq_files.rb $(THREADS) $(REAL_D)/*.fa && ruby cluster.rb $(THREADS) $(REAL_D)/all_clean_annotated.seanie_lsa.fa && $(BIN)/$(MAIN) $(REAL_D)/all_clean_annotated.seanie_lsa.fa.clu.tsv
+test_lsa:
+	rm -r lsa_output/; time ./lsa.rb -i test_files/small/*
