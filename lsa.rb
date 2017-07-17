@@ -16,7 +16,7 @@ module Aai
 end
 
 module Lsa
-  VERSION   = "0.1.0"
+  VERSION   = "0.1.1"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -219,7 +219,7 @@ idx2doc = {}
 File.open(idx_to_doc_outf, "rt").each_line do |line|
   idx, doc = line.chomp.split "\t"
 
-  idx2doc[idx] = doc
+  idx2doc[idx.to_i] = doc
 end
 
 col_names = idx2doc.
