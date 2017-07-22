@@ -2,26 +2,45 @@
 
 ## Dependencies
 
-The pipleline has the following dependencies.
+The pipleline has the following dependencies. I know...it's a lot :(
+
+### Languages
+
+- [Ruby](https://www.ruby-lang.org/es/)
+- [Python](https://www.python.org/)
+- [R](https://www.r-project.org/)
 
 ### RubyGems
 
-- abort_if
-- parse_fasta
-- trollop
-- aai
+- [abort_if](https://rubygems.org/gems/abort_if)
+- [parse_fasta](https://rubygems.org/gems/parse_fasta)
+- [trollop](https://rubygems.org/gems/trollop)
+- [aai](https://rubygems.org/gems/aai)
+
+These can be installed from RubyGems like so
+
+```
+gem install abort_if parse_fasta trollop aai
+```
 
 ### Python libraries
 
-- GenSim
+- [GenSim](https://radimrehurek.com/gensim/)
+
+*Note*: For GenSim to work on one of our servers, we had to upgrade numpy and a Python module called `six`.
+
+### R libraries
+
+- [Ape](https://cran.r-project.org/web/packages/ape/index.html)
 
 ### Other programs
 
-- MMseqs2 (expected to be on your `PATH`)
+- [MMseqs2](https://github.com/soedinglab/MMseqs2)
+- A C compiler (e.g., [gcc](https://gcc.gnu.org/))
 
 ## Installing
 
-Get the code.
+Assuming you have met all the dependencies, you need to get the pipeline code. You can clone the repository or download the lastest release from [here](https://github.com/mooreryan/lsa_for_genomes/releases).
 
 ```
 $ git clone https://github.com/mooreryan/lsa_for_genomes.git
@@ -37,7 +56,7 @@ $ make
 You can test that everything works by running
 
 ```
-$ make test_lsa_full
+$ make test_lsa
 ```
 
 ## Running
@@ -54,7 +73,7 @@ $ ./lsa.rb -h
 
   Options:
   -b, --bin-dir=<s>       Folder with the LSA scripts and binaries (default: ./bin)
-  -i, --infiles=<s+>      Files with ORF clusters
+  -i, --infiles=<s+>      Files with ORFs
   -o, --outdir=<s>        Output directory (default: ./lsa_output)
   -c, --cpus=<i>          Number of CPUs to use (default: 3)
   -n, --num-topics=<i>    The number of topics to calculate for LSA (default: 20)
@@ -74,7 +93,7 @@ And you'll get a whole bunch of output...
 ```
 $ tree lsa_test/
 
-lsa_test/
+lsa_output/
 ├── all_prepped.fa
 ├── all_prepped.fa.DB
 ├── all_prepped.fa.DB.index
@@ -91,6 +110,9 @@ lsa_test/
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.rows_are_terms.txt
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.singular_values.txt
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt
+├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_1_seqs.fa
+├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_2_seqs.fa
+├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_3_seqs.fa
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt.newick.txt
 ├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_matrix.txt
@@ -98,5 +120,7 @@ lsa_test/
 ├── lsa_out.txt
 └── make_tree.r
 
-0 directories, 22 files
+0 directories, 25 files
 ```
+
+The pipeline is still under active development, so expect this to change.

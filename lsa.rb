@@ -17,7 +17,7 @@ module Aai
 end
 
 module Lsa
-  VERSION   = "0.2.0"
+  VERSION   = "0.2.1"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -69,7 +69,7 @@ opts = Trollop.options do
       default: File.join(Dir.home, "bin", "mmseqs"))
 
   opt(:infiles,
-      "Files with ORF clusters",
+      "Files with ORFs",
       type: :strings)
   opt(:outdir,
       "Output directory",
@@ -81,7 +81,7 @@ opts = Trollop.options do
       default: 3)
 
   opt(:num_topics,
-      "The number of topics to calculate for LSA",
+      "The maximum number of topics to calculate for LSA",
       default: 20)
 end
 
