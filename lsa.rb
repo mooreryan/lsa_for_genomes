@@ -5,6 +5,7 @@ Signal.trap("PIPE", "EXIT")
 require "aai"
 require "abort_if"
 require "fileutils"
+require "set"
 require "trollop"
 
 include AbortIf
@@ -16,7 +17,7 @@ module Aai
 end
 
 module Lsa
-  VERSION   = "0.1.1"
+  VERSION   = "0.2.0"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -96,12 +97,14 @@ prep_seq_files = File.join opts[:bin_dir], "prep_seq_files.rb"
 cluster = File.join opts[:bin_dir], "cluster.rb"
 td_matrix = File.join opts[:bin_dir], "td_matrix"
 lsa_py = File.join opts[:bin_dir], "lsa.py"
+grep_ids = File.join opts[:bin_dir], "grep_ids"
 mmseqs = opts[:mmseqs]
 
 abort_unless_command prep_seq_files
 abort_unless_command cluster
 abort_unless_command td_matrix
 abort_unless_command lsa_py
+abort_unless_command grep_ids
 abort_unless_command mmseqs
 
 ################
@@ -242,6 +245,48 @@ end
 
 cmd = "Rscript #{tmp_r_script_fname}"
 Process.run_and_time_it! "Making tree", cmd
+
+# Get the actual sequences for top seqs
+top_terms_fname = "#{td_matrix_outf}.lsa_py.top_terms.txt"
+ids_to_grep_fname = "#{top_terms_fname}.ids.txt"
+
+AbortIf.logger.info { "Reading top terms" }
+topic2seqid = {}
+File.open(top_terms_fname, "rt").each_line do |line|
+  unless line.start_with? "topic"
+    topic, term, val = line.chomp.split " "
+
+    if topic2seqid.has_key? topic
+      topic2seqid[topic] << term
+    else
+      topic2seqid[topic] = Set.new [term]
+    end
+  end
+end
+
+# Make the outfiles
+top_fasta_fnames = {}
+topic2seqid.each do |topic, seqid|
+  top_fasta_fnames[topic] =
+    File.open("#{ids_to_grep_fname}.topic_#{topic.to_i+1}_seqs.fa", "w")
+end
+
+AbortIf.logger.info { "Grepping seq ids" }
+# Grep them from the prepped file
+ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
+  topic2seqid.each do |topic, headers|
+    if headers.include? rec.header
+      # seqs can be top in multiple topics
+      top_fasta_fnames[topic].puts rec
+    end
+  end
+end
+
+# Close the files
+top_fasta_fnames.each do |topic, f|
+  f.close
+end
+
 
 ##################
 # run the pipeline

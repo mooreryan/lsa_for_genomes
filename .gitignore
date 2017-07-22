@@ -1,4 +1,6 @@
 .DS_Store
 bin/td_matrix*
 lsa_output
+scripts/preprint_r_scripts/hshs.r
+test_files/9genomes
 vendor/*.o
