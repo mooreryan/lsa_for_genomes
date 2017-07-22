@@ -99,9 +99,9 @@ index = similarities.Similarity(similarity_tmp_fname,
 sims = index[lsi[corpus]]
 with open(transformed_doc_dist_matrix_fname, "w") as f:
     for vec in sims:
-        # TODO BUG 1 - num is not actually the "cosine distance" what
-        # we need is angular distance.
-        f.write(" ".join([str(round(1 - num, 5)) for num in vec]))
+        # TODO perhaps angular distance is a better way to convert to
+        # distance.
+        f.write(" ".join([str(round(1 - abs(num), 5)) for num in vec]))
         f.write("\n")
 
 # Remove the similarity tmp files
