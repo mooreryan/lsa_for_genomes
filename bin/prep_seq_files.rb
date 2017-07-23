@@ -15,7 +15,7 @@ ARGV.each do |fname|
   AbortIf.logger.info { "Working on #{fname}" }
 
   ParseFasta::SeqFile.open(fname).each_record do |rec|
-    puts ">#{clean_str fname}~#{clean_str rec.header}"
+    puts ">#{clean_str File.basename(fname)}~#{clean_str rec.header}"
     puts rec.seq
   end
 end

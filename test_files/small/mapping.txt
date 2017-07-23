@@ -1,0 +1,4 @@
+file name	group	another group
+e_coli.faa.gz	bacteria	a
+m_mazei.faa.gz	archaea	a
+s_flexneri.faa.gz	bacteria	b
