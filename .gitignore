@@ -1,7 +1,14 @@
 .DS_Store
+.lock-wscript
+bin/redsvd
 bin/td_matrix*
 Gemfile.lock
 lsa_output
 scripts/preprint_r_scripts/hshs.r
 test_files/9genomes
 vendor/*.o
+vendor/redsvd-0.2.0/.waf*
+vendor/redsvd-0.2.0/bin
+vendor/redsvd-0.2.0/include
+vendor/redsvd-0.2.0/lib
+vendor/redsvd-0.2.0/redsvd_build
