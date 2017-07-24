@@ -1,10 +1,10 @@
-/* 
+/*
  *  Copyright (c) 2010 Daisuke Okanohara
- * 
+ *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
  *   are met:
- * 
+ *
  *   1. Redistributions of source code must retain the above Copyright
  *      notice, this list of conditions and the following disclaimer.
  *
@@ -41,8 +41,11 @@ void writeMatrix_(const string& fn, const MatrixXf& M){
   }
 
   for (int i = 0; i < M.rows(); ++i){
-    for (int j = 0; j < M.cols(); ++j){
-      fprintf(outfp, "%+f ",  M(i, j));
+    /* print first element of the line */
+    fprintf(outfp, "%+f",  M(i, 0));
+
+    for (int j = 1; j < M.cols(); ++j){
+      fprintf(outfp, " %+f",  M(i, j));
     }
     fprintf(outfp, "\n");
   }
@@ -64,7 +67,7 @@ void writeVector_(const string& fn, const VectorXf& V){
   fclose(outfp);
 }
 
-void readLine(const string& line,  
+void readLine(const string& line,
 	      fv_t& fv){
   istringstream is(line);
 
@@ -107,7 +110,7 @@ void readMatrix(const std::string& fn, MatrixXf& A){
   vector< vector<float> > vs;
   for (string line; getline(ifs, line); ){
     istringstream is(line);
-    vector<float> v; 
+    vector<float> v;
     float val;
     while (is >> val){
       v.push_back(val);
@@ -119,10 +122,10 @@ void readMatrix(const std::string& fn, MatrixXf& A){
   if (rowN == 0) return;
   size_t colN = vs[0].size();
   A.resize(rowN, colN);
-  
+
   for (size_t i = 0; i < rowN; ++i){
     if (colN != vs[i].size()){
-      cerr << "warning: " << i+1 << "-th row has " << vs[i].size() << " entries. " 
+      cerr << "warning: " << i+1 << "-th row has " << vs[i].size() << " entries. "
 	   << colN << " entries are expected" << endl;
     }
     size_t colNmin = min(colN, vs[i].size());
