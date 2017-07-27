@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "err_codes.h"
 #include "tommy_helper.h"
@@ -9,7 +10,7 @@
 #include "../vendor/tommyarray.h"
 #include "../vendor/tommyhashlin.h"
 
-#define MAX_STR_LEN 1000
+#define MAX_STR_LEN 10000
 #define DOC_SEP "~"
 
 double
@@ -160,8 +161,7 @@ int main(int argc, char *argv[])
 
   const char* idx_to_doc_map_suffix  = "seanie_lsa.idx_to_doc_map.txt";
   const char* idx_to_term_map_suffix = "seanie_lsa.idx_to_term_map.txt";
-  const char* td_matrix_suffix       = "seanie_lsa.td_matrix.mm.txt";
-  const char* td_tmp_suffix          = "seanie_lsa.td_matrix.tmp";
+  const char* td_matrix_suffix       = "seanie_lsa.td_matrix.txt";
 
   char* idx_to_doc_map_fname =
     join(argv[1], idx_to_doc_map_suffix, '.');
@@ -169,8 +169,6 @@ int main(int argc, char *argv[])
     join(argv[1], idx_to_term_map_suffix, '.');
   char* td_matrix_fname =
     join(argv[1], td_matrix_suffix, '.');
-  char* td_tmp_fname =
-    join(argv[1], td_tmp_suffix, '.');
 
   PANIC_IF_FILE_CAN_BE_READ(stderr, idx_to_doc_map_fname);
   FILE* idx_to_doc_map_f = fopen(idx_to_doc_map_fname, "w");
@@ -195,15 +193,6 @@ int main(int argc, char *argv[])
                stderr,
                "Could not open %s for writing",
                td_matrix_fname);
-
-  PANIC_IF_FILE_CAN_BE_READ(stderr, td_tmp_fname);
-  FILE* td_tmp_f = fopen(td_tmp_fname, "w");
-  PANIC_UNLESS(td_tmp_f,
-               FILE_ERR,
-               stderr,
-               "Could not open %s for writing",
-               td_tmp_fname);
-
 
   tommy_array* tokens = NULL;
   char* doc = NULL;
@@ -246,15 +235,10 @@ int main(int argc, char *argv[])
     ++total_lines;
 
     tokens = tokenize(seq, DOC_SEP);
-    assert(tommy_array_size(tokens) == 2);
-    if (tommy_array_size(tokens) != 2) {
-      for (int i = 0; i < tommy_array_size(tokens); ++i) {
-        fprintf(stderr,
-                "WARN -- token %d: %s\n",
-                i,
-                tommy_array_get(tokens, i));
-      }
-    }
+    PANIC_UNLESS(tommy_array_size(tokens) == 2,
+                 STD_ERR,
+                 stderr,
+                 "Wrong number of tokens.");
 
     doc = tommy_array_get(tokens, 0);
 
@@ -341,7 +325,8 @@ int main(int argc, char *argv[])
     if (!str_eq(term, last_term)) {
       /* starting a new term */
 
-      /* Get data for idf calc */
+      /* Get data for idf calc. Scan through each doc to see if this
+       * term is present in that doc. */
       for (int i = 0; i < num_docs; ++i) {
         doc_name = tommy_array_get(doc_names, i);
 
@@ -362,6 +347,7 @@ int main(int argc, char *argv[])
         }
       }
 
+      int first_non_zero_doc = 1;
       for (int i = 0; i < num_docs; ++i) {
         doc_name = tommy_array_get(doc_names, i);
 
@@ -378,13 +364,23 @@ int main(int argc, char *argv[])
                      doc);
 
         if (tmp_kv->val > 0) {
-          fprintf(td_tmp_f,
-                  "%d %d %.5f\n",
-                  i + 1,
-                  term_idx + 1,
-                  tmp_kv->val * idf_weight(num_docs, docs_with_term));
+          /* this check is to get the spaces right in the output line */
+          if (first_non_zero_doc) { /* first doc/col */
+            fprintf(td_matrix_f,
+                    "%d:%.5f",
+                    i,
+                    tmp_kv->val * idf_weight(num_docs, docs_with_term));
+            first_non_zero_doc = 0;
+          } else {
+            fprintf(td_matrix_f,
+                    " %d:%.5f",
+                    i,
+                    tmp_kv->val * idf_weight(num_docs, docs_with_term));
+          }
         }
       }
+      /* finish off the line */
+      fprintf(td_matrix_f, "\n");
 
       /* Zero out the counting hash */
       tommy_hashlin_foreach(doc_counts,
@@ -397,6 +393,7 @@ int main(int argc, char *argv[])
       /* still on the same term */
     }
 
+    /* Make sure the doc for this line is in the doc_counts ht */
     tmp_kv = NULL;
     tmp_kv = tommy_hashlin_search(doc_counts,
                                   kv_compare,
@@ -409,6 +406,7 @@ int main(int argc, char *argv[])
                  "Doc: %s not found in counting hash table",
                  doc);
 
+    /* This term is found in the current doc, inc the count */
     ++tmp_kv->val;
 
     ARRAY_DONE(tokens, free);
@@ -444,6 +442,7 @@ int main(int argc, char *argv[])
     }
   }
 
+  int first_non_zero_doc = 1;
   for (int i = 0; i < num_docs; ++i) {
     doc_name = tommy_array_get(doc_names, i);
 
@@ -460,56 +459,25 @@ int main(int argc, char *argv[])
                  doc);
 
     if (tmp_kv->val > 0) {
-      fprintf(td_tmp_f,
-              "%d %d %.5f\n",
-              i + 1,
-              term_idx + 1,
-              tmp_kv->val * idf_weight(num_docs, docs_with_term));
+      /* this check is to get the spaces right in the output line */
+      if (first_non_zero_doc) {
+        fprintf(td_matrix_f,
+                "%d:%.5f",
+                i,
+                tmp_kv->val * idf_weight(num_docs, docs_with_term));
+        first_non_zero_doc = 0;
+      } else {
+        fprintf(td_matrix_f,
+                " %d:%.5f",
+                i,
+                tmp_kv->val * idf_weight(num_docs, docs_with_term));
+      }
     }
   }
+  /* finish off the line */
+  fprintf(td_matrix_f, "\n");
+
   total_non_zero_entries += docs_with_term;
-  fclose(td_tmp_f);
-
-  fprintf(stderr, "LOG -- sorting tmp matrix\n");
-  char cmd[10000];
-  const char* tmp_sort_out = "arstoien.td_matrix.seanie_lsa.arstoien";
-  snprintf(cmd, sizeof(cmd), "sort -k1n -k2n -o %s %s", tmp_sort_out, td_tmp_fname);
-  system(cmd);
-
-  fprintf(stderr,
-          "LOG -- writing final matrix file\n");
-  fprintf(td_matrix_f,
-          "%%%%MatrixMarket matrix coordinate real general\n");
-  fprintf(td_matrix_f,
-          "%d %d %d\n",
-          num_docs,
-          num_terms,
-          total_non_zero_entries);
-
-  td_tmp_f = fopen(tmp_sort_out, "r");
-  PANIC_UNLESS(td_tmp_f,
-               FILE_ERR,
-               stderr,
-               "Could not open %s for reading",
-               td_tmp_fname);
-
-  /* TODO change this to fread to read chunks of memory at a time */
-  int row = 0;
-  int col = 0;
-  double val = 0.0;
-
-  while(fscanf(td_tmp_f, "%d %d %lf", &row, &col, &val) == 3) {
-    fprintf(td_matrix_f, "%d %d %lf\n", row, col, val);
-  }
-
-  fclose(td_tmp_f);
-  PANIC_UNLESS(remove(td_tmp_fname) == 0,
-               errno,
-               stderr,
-               "Could not remove file '%s' (errno: %s)",
-               td_tmp_fname,
-               strerror(errno));
-
 
   fprintf(stderr, "LOG -- writing doc2idx\n");
   /* TODO print out idx + 1 and reverse it */
@@ -521,13 +489,6 @@ int main(int argc, char *argv[])
   /* NEXT STEP: print outputs to named files */
 
   /* Clean up */
-  PANIC_UNLESS(remove(tmp_sort_out) == 0,
-               errno,
-               stderr,
-               "Could not remove file '%s' (errno: %s)",
-               tmp_sort_out,
-               strerror(errno));
-
   fprintf(stderr, "LOG -- cleaning up\n");
   HASHLIN_DONE(doc_counts, kv_free);
   HASHLIN_DONE(doc2idx, kv_free);
@@ -542,7 +503,6 @@ int main(int argc, char *argv[])
   free(idx_to_doc_map_fname);
   free(idx_to_term_map_fname);
   free(td_matrix_fname);
-  free(td_tmp_fname);
 
   fclose(cluster_tsv);
   fclose(td_matrix_f);
