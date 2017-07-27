@@ -63,18 +63,18 @@
     }                                                           \
   } while (0)
 
-#define PANIC_UNLESS_FILE_CAN_BE_READ(iostream, fname)                  \
+#define PANIC_UNLESS_FILE_CAN_BE_READ(log_fp, fname)                    \
   do {                                                                  \
     int err_codes_fd = open(fname, O_RDONLY);                           \
     PANIC_IF(err_codes_fd == -1,                                        \
              errno,                                                     \
-             iostream,                                                  \
+             log_fp,                                                    \
              "Could not read file '%s': %s",                            \
              fname,                                                     \
              strerror(errno));                                          \
     PANIC_UNLESS(close(err_codes_fd) == 0,                              \
                  errno,                                                 \
-                 iostream,                                              \
+                 log_fp,                                                \
                  "Could not close fd (%d) associated with file "        \
                  "'%s': %s",                                            \
                  err_codes_fd,                                          \
@@ -82,18 +82,18 @@
                  strerror(errno));                                      \
   } while (0)
 
-#define PANIC_IF_FILE_CAN_BE_READ(iostream, fname)                      \
+#define PANIC_IF_FILE_CAN_BE_READ(log_fp, fname)                        \
   do {                                                                  \
     int err_codes_fd = open(fname, O_RDONLY);                           \
     PANIC_UNLESS(err_codes_fd == -1,                                    \
                  STD_ERR,                                               \
-                 iostream,                                              \
+                 log_fp,                                                \
                  "The file '%s' already exists",                        \
                  fname);                                                \
     if (err_codes_fd != -1) {                                           \
       PANIC_UNLESS(close(err_codes_fd) == 0,                            \
                    errno,                                               \
-                   iostream,                                            \
+                   log_fp,                                              \
                    "Could not close fd (%d) associated with file "      \
                    "'%s': %s",                                          \
                    err_codes_fd,                                        \
