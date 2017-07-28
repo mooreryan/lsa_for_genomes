@@ -2,10 +2,15 @@
 .lock-wscript
 bin/redsvd
 bin/td_matrix*
+bin/td_old*
 Gemfile.lock
 lsa_output
+old
 scripts/preprint_r_scripts/hshs.r
+src/*old*
 test_files/9genomes
+test_files/*seanie*
+test_files/.Rhistory
 vendor/*.o
 vendor/redsvd-0.2.0/.waf*
 vendor/redsvd-0.2.0/bin

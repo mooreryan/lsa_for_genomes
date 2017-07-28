@@ -10,7 +10,6 @@ def set_options(ctx):
 
 def configure(ctx):
   ctx.check_tool('compiler_cxx')
-  ctx.check_tool('unittestt')
   ctx.env.CXXFLAGS += ['-O2', '-Wall', '-g']
 
 import Scripting
@@ -21,4 +20,4 @@ def dist_hook():
     os.remove('googlecode_upload.py')
 
 def build(bld):
-  bld.recurse('vendor/redsvd-0.2.0/src vendor/redsvd-0.2.0/test vendor/redsvd-0.2.0/sample')
+  bld.recurse('vendor/redsvd/src')

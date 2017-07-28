@@ -10,6 +10,7 @@ BIN = bin
 TEST_D = test_files
 SMALL_D = $(TEST_D)/small
 REAL_D = $(TEST_D)/real
+SVD_D = $(VENDOR)/redsvd
 
 OBJS := $(VENDOR)/tommyarray.o \
         $(VENDOR)/tommyhashlin.o \
@@ -23,13 +24,11 @@ THREADS = 3
 .PHONY: all
 .PHONY: clean
 
-all: bin_dir $(MAIN) redsvd
-
-bin_dir:
-	$(MKDIR_P) $(BIN)
+all: $(MAIN) redsvd
 
 clean:
-	-rm -r $(BIN)/td_matrix $(BIN)/redsvd $(OBJS) vendor/redsvd-0.2.0/redsvd_build vendor/redsvd-0.2.0/bin vendor/redsvd-0.2.0/lib vendor/redsvd-0.2.0/include
+	-rm -r $(SVD_D)/bin $(SVD_D)/include $(SVD_D)/lib $(SVD_D)/redsvd_build $(BIN)/redsvd
+	-rm -r $(BIN)/td_matrix $(OBJS)
 
 grep_ids: $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
@@ -38,7 +37,7 @@ $(MAIN): $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
 
 test: $(MAIN)
-	rm test_files/test.clu.tsv.*; valgrind --leak-check=full $(BIN)/$(MAIN) test_files/test.clu.tsv && rm test_files/test.clu.tsv.*
+	rm test_files/test.clu.tsv.*; $(BIN)/$(MAIN) test_files/test.clu.tsv && rm test_files/test.clu.tsv.*
 
 test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa
@@ -56,7 +55,7 @@ test_lsa_small:
 	rm -r lsa_output/; time ./lsa.rb -i test_files/small/* -a test_files/mapping.txt
 
 redsvd:
-	vendor/redsvd-0.2.0/waf configure --blddir vendor/redsvd-0.2.0/redsvd_build --prefix vendor/redsvd-0.2.0/
-	vendor/redsvd-0.2.0/waf
-	vendor/redsvd-0.2.0/waf install
-	mv vendor/redsvd-0.2.0/bin/redsvd ./bin
+	$(SVD_D)/waf configure --blddir $(SVD_D)/redsvd_build --prefix $(SVD_D)
+	$(SVD_D)/waf
+	$(SVD_D)/waf install
+	mv $(SVD_D)/bin/redsvd ./bin

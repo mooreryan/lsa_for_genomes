@@ -1,0 +1,3 @@
+[submodule "vendor/redsvd"]
+	path = vendor/redsvd
+	url = https://github.com/mooreryan/redsvd
