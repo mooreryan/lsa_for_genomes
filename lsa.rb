@@ -216,7 +216,7 @@ if opts[:mapping]
 end
 
 # From here on, run everything in a big loop for all the cluster files
-[mmseqs_final_outf, new_cluster_outfnames].flatten.each do |cluster_outf|
+[mmseqs_final_outf, new_cluster_outfnames].flatten.each_with_index do |cluster_outf, metadata_group_idx|
   AbortIf.logger.info { "Running big loop on #{cluster_outf}" }
 
 
@@ -308,6 +308,7 @@ end
 
   AbortIf.logger.info { "Finding top terms for each document" }
   terms_closest_to_docs = svd_VS_US_dis_fname + ".terms_closest_to_docs.txt"
+  doc2top_terms = {}
   File.open(terms_closest_to_docs, "w") do |f|
     # Get genes closest to each doc
     File.open(svd_VS_US_dis_fname, "rt").each_line.with_index do |line, doc_idx|
@@ -326,11 +327,13 @@ end
       # lowest distances are the best
       closest_terms = dists_with_idx.sort_by { |term_idx, dist| dist }.take num_to_keep
 
+      doc2top_terms[doc_name] = Set.new
       closest_terms.each do |term_idx, dist|
         abort_unless idx2term.has_key?(term_idx),
                      "Missing term index #{term_idx} from the idx2term hash table."
 
         term_name = idx2term[term_idx]
+        doc2top_terms[doc_name] << term_name
         f.puts [doc_name, term_name, dist].join " "
       end
     end
@@ -452,11 +455,29 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
   topic2seqid.each do |topic, seqid|
     top_fasta_fnames[topic] =
       File.open("#{ids_to_grep_fname}.topic_#{topic.to_i+1}_seqs.fa", "w")
+
+  end
+
+  top_terms_per_doc_fnames = {}
+  doc2top_terms.each do |doc, terms|
+    if metadata_group_idx.zero?
+      metadata_group_label = "original"
+    else
+      metadata_group_label = label2outf.to_a[metadata_group_idx-1].first
+    end
+
+    top_terms_per_doc_fnames[doc] = File.open(File.join(opts[:outdir], "top_terms.metadata_group_#{metadata_group_label}.label_#{doc}.fa"), "w")
   end
 
   AbortIf.logger.info { "Grepping seq ids" }
   # Grep them from the prepped file
   ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
+    doc2top_terms.each do |doc, headers|
+      if headers.include? rec.header
+        top_terms_per_doc_fnames[doc].puts rec
+      end
+    end
+
     topic2seqid.each do |topic, headers|
       if headers.include? rec.header
         # seqs can be top seq in multiple topics
@@ -467,6 +488,10 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
 
   # Close the files
   top_fasta_fnames.each do |topic, f|
+    f.close
+  end
+
+  top_terms_per_doc_fnames.each do |doc, f|
     f.close
   end
 end
