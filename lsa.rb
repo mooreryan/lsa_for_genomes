@@ -90,7 +90,7 @@ opts = Trollop.options do
 
   opt(:cpus,
       "Number of CPUs to use",
-      default: 3)
+      default: 4)
 
   opt(:num_topics,
       "The maximum number of topics to calculate for LSA",

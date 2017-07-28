@@ -42,7 +42,7 @@ test: $(MAIN)
 test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa
 
-test_lsa: $(MAIN)
+test_lsa: $(MAIN) redsvd
 	rm -r lsa_output/; time ./lsa.rb -i test_files/*.faa.gz -a test_files/mapping.txt
 
 test_lsa_no_mapping: $(MAIN)
