@@ -142,9 +142,10 @@ kv_print_map(void* arg, void* data)
 
 int main(int argc, char *argv[])
 {
-  if (argc != 2) {
+  if (argc != 3) {
     fprintf(stderr,
-            "USAGE: %s mmseq2_clusters.tsv\n",
+            "USAGE: %s mmseq2_clusters.tsv outdir\n"
+            "Note: outdir must already exist.",
             argv[0]);
 
     exit(1);
@@ -159,16 +160,16 @@ int main(int argc, char *argv[])
            argv[1],
            strerror(errno));
 
-  const char* idx_to_doc_map_suffix  = "seanie_lsa.idx_to_doc_map.txt";
-  const char* idx_to_term_map_suffix = "seanie_lsa.idx_to_term_map.txt";
-  const char* td_matrix_suffix       = "seanie_lsa.td_matrix.txt";
+  const char* idx_to_doc_map_suffix  = "td_matrix.idx_to_doc_map.txt";
+  const char* idx_to_term_map_suffix = "td_matrix.idx_to_term_map.txt";
+  const char* td_matrix_suffix       = "td_matrix.txt";
 
   char* idx_to_doc_map_fname =
-    join(argv[1], idx_to_doc_map_suffix, '.');
+    join(argv[2], idx_to_doc_map_suffix, '/');
   char* idx_to_term_map_fname =
-    join(argv[1], idx_to_term_map_suffix, '.');
+    join(argv[2], idx_to_term_map_suffix, '/');
   char* td_matrix_fname =
-    join(argv[1], td_matrix_suffix, '.');
+    join(argv[2], td_matrix_suffix, '/');
 
   PANIC_IF_FILE_CAN_BE_READ(stderr, idx_to_doc_map_fname);
   FILE* idx_to_doc_map_f = fopen(idx_to_doc_map_fname, "w");

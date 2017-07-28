@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION   = "0.3.0"
+  PIPELINE_VERSION   = "0.4.0"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -83,7 +83,7 @@ opts = Trollop.options do
   opt(:outdir,
       "Output directory",
       type: :string,
-      default: File.join(THIS_DIR, "lsa_output"))
+      default: File.join(THIS_DIR, "output"))
   opt(:mapping,
       "Mapping file (optional)",
       type: :string)
@@ -132,24 +132,35 @@ abort_unless_command mmseqs
 # outfiles
 ##########
 
-prepped_seq_files = File.join opts[:outdir], "all_prepped.fa"
+seq_dir = File.join opts[:outdir], "prepped_seqs"
+cluster_dir = File.join opts[:outdir], "clustering"
+log_dir = File.join opts[:outdir], "logs"
 
-mmseqs_final_outf = "#{prepped_seq_files}.clu.tsv.sorted"
+FileUtils.mkdir_p seq_dir
+FileUtils.mkdir_p cluster_dir
+FileUtils.mkdir_p log_dir
+
+prepped_seq_files_basename = "seqs"
+prepped_seq_files = File.join seq_dir, prepped_seq_files_basename + ".faa"
+
+mmseqs_base_with_dir = File.join cluster_dir, prepped_seq_files_basename
+
+mmseqs_final_outf = "#{mmseqs_base_with_dir}.clu.tsv.sorted"
 mmseqs_outfiles = [
-  "#{prepped_seq_files}.DB",
-  "#{prepped_seq_files}.DB.index",
-  "#{prepped_seq_files}.DB.lookup",
-  "#{prepped_seq_files}.DB_h",
-  "#{prepped_seq_files}.DB_h.index",
-  "#{prepped_seq_files}.clu",
-  "#{prepped_seq_files}.clu.index",
-  "#{prepped_seq_files}.clu.tsv",
+  "#{mmseqs_base_with_dir}.DB",
+  "#{mmseqs_base_with_dir}.DB.index",
+  "#{mmseqs_base_with_dir}.DB.lookup",
+  "#{mmseqs_base_with_dir}.DB_h",
+  "#{mmseqs_base_with_dir}.DB_h.index",
+  "#{mmseqs_base_with_dir}.clu",
+  "#{mmseqs_base_with_dir}.clu.index",
+  "#{mmseqs_base_with_dir}.clu.tsv",
   mmseqs_final_outf,
 ]
 
 
-outf = File.join opts[:outdir], "lsa_out.txt"
-errf = File.join opts[:outdir], "lsa_err.txt"
+outf = File.join log_dir, "lsa_out.txt"
+errf = File.join log_dir, "lsa_err.txt"
 
 ##########
 # outfiles
@@ -195,7 +206,7 @@ end
 if all_files_exist? mmseqs_outfiles
   AbortIf.logger.info { "Clustering already done, skipping" }
 else
-  cmd = "#{cluster} #{mmseqs} #{opts[:cpus]} #{prepped_seq_files} 1>> #{outf} 2>> #{errf}"
+  cmd = "#{cluster} #{mmseqs} #{opts[:cpus]} #{prepped_seq_files} #{cluster_dir} #{prepped_seq_files_basename} 1>> #{outf} 2>> #{errf}"
   Process.run_and_time_it! "Clustering ORFs", cmd
 end
 
@@ -219,31 +230,53 @@ end
 [mmseqs_final_outf, new_cluster_outfnames].flatten.each_with_index do |cluster_outf, metadata_group_idx|
   AbortIf.logger.info { "Running big loop on #{cluster_outf}" }
 
+  if metadata_group_idx.zero?
+    metadata_group_label = "original"
+  else
+    metadata_group_label = label2outf.to_a[metadata_group_idx-1].first
+  end
 
-  td_matrix_outf = "#{cluster_outf}.seanie_lsa.td_matrix.txt"
-  idx_to_doc_outf = "#{cluster_outf}.seanie_lsa.idx_to_doc_map.txt"
-  idx_to_term_outf = "#{cluster_outf}.seanie_lsa.idx_to_term_map.txt"
+  metadata_group_dir = File.join opts[:outdir], "metadata_groups", metadata_group_label
+  td_matrix_dir = File.join metadata_group_dir, "td_matrix"
+  redsvd_dir = File.join metadata_group_dir, "redsvd"
+  rscript_dir = File.join metadata_group_dir, "r"
+  trees_dir = File.join metadata_group_dir, "trees"
+  top_terms_by_topic_dir = File.join metadata_group_dir, "top_terms_by_topic"
+  top_terms_by_doc_dir = File.join metadata_group_dir, "top_terms_by_doc"
+
+  FileUtils.mkdir_p metadata_group_dir
+  FileUtils.mkdir_p td_matrix_dir
+  FileUtils.mkdir_p redsvd_dir
+  FileUtils.mkdir_p rscript_dir
+  FileUtils.mkdir_p trees_dir
+  FileUtils.mkdir_p top_terms_by_topic_dir
+  FileUtils.mkdir_p top_terms_by_doc_dir
+
+  # NEXT STEP, the td_matrix C program won't write files like
+  # this. Either change that program or move the files from what it
+  # writes to these.
+
+  td_matrix_outf = File.join td_matrix_dir, "td_matrix.txt"
+  idx_to_doc_outf = File.join td_matrix_dir, "td_matrix.idx_to_doc_map.txt"
+  idx_to_term_outf = File.join td_matrix_dir, "td_matrix.idx_to_term_map.txt"
   td_matrix_outfiles = [
     td_matrix_outf,
     idx_to_doc_outf,
     idx_to_term_outf,
   ]
 
-  redsvd_outf_base = "#{td_matrix_outf}.svd"
-  tmp_r_script_fname = File.join "#{cluster_outf}.make_tree.r"
-  newick_terms_fname = redsvd_outf_base + ".terms_newick.txt"
-  newick_docs_fname = redsvd_outf_base + ".docs_newick.txt"
+  redsvd_outf_base = File.join redsvd_dir, "svd"
+  tmp_r_script_fname = File.join rscript_dir, "make_tree.r"
+  newick_docs_fname = File.join trees_dir, "doc_dist_tree.newick.txt"
 
   # Tf-idf counts
 
   if all_files_exist? td_matrix_outfiles
     AbortIf.logger.info { "Term-doc matrix already created, skipping" }
   else
-    cmd = "#{td_matrix} #{cluster_outf} 1>> #{outf} 2>> #{errf}"
+    cmd = "#{td_matrix} #{cluster_outf} #{File.dirname td_matrix_outf} 1>> #{outf} 2>> #{errf}"
     Process.run_and_time_it! "Building term-doc matrix", cmd
   end
-
-
 
   # Parse the idx to name map files
   idx2doc = {}
@@ -253,31 +286,11 @@ end
     idx2doc[idx.to_i] = doc
   end
 
-  doc_names = idx2doc.
-              sort_by { |idx, doc| idx }.
-              map { |idx, doc| "\"#{doc}\"" }.
-              join "\n"
-
-  ordered_doc_names = idx_to_doc_outf + ".for_r"
-  File.open(ordered_doc_names, "w") do |f|
-    f.puts doc_names
-  end
-
   idx2term = {}
   File.open(idx_to_term_outf, "rt").each_line do |line|
     idx, term = line.chomp.split "\t"
 
     idx2term[idx.to_i] = term
-  end
-
-  term_names = idx2term.
-              sort_by { |idx, term| idx }.
-              map { |idx, term| "\"#{term}\"" }.
-              join "\n"
-
-  ordered_term_names = idx_to_term_outf + ".for_r"
-  File.open(ordered_term_names, "w") do |f|
-    f.puts term_names
   end
 
 
@@ -306,8 +319,53 @@ end
   num_to_keep = (idx2term.count * (KEEP_PERCENT / 100.0)).round
   AbortIf.logger.info { "Keeping #{num_to_keep} of #{idx2term.count} terms for each doc" }
 
+  AbortIf.logger.info { "Finding top terms for each topic (weight listed is the raw weight not the projection)" }
+  top_terms_by_topic = File.join top_terms_by_topic_dir, "top_terms_by_topic.txt"
+  topic2top_terms = {}
+  File.open(top_terms_by_topic, "w") do |f|
+    topic2top_terms = {}
+    all_weights = []
+    File.open(svd_U_fname, "rt").each_line.with_index do |line, term_idx|
+      *weights = line.chomp.split(" ").map { |weight| weight.to_f }
+
+      weights_with_term_idx = weights.map { |weight| [term_idx, weight, weight.abs] }
+
+      all_weights << weights_with_term_idx
+      # TODO assert correct number of topics
+    end
+
+    num_topics = all_weights.first.count
+    num_topics.times do |topic_idx|
+      topic2top_terms[topic_idx] = Set.new
+    end
+
+    # Now get the top terms for the topics. In this case, the higher
+    # the weight, the better it is.
+    all_weights.
+      transpose. # iterate over topics
+      map do |elem|
+      elem.
+        sort_by { |term_idx, weight, abs_weight| abs_weight }.
+        reverse.
+        take(num_to_keep) # we want only the num_to_keep highest weights per topic
+    end.each_with_index do |elem, topic_index| # each element holds weights for topics
+      elem.each do |term_idx, weight, abs_weight|
+        abort_unless idx2term.has_key?(term_idx),
+                     "#{term_idx} missing from idx2term"
+
+        term_name = idx2term[term_idx]
+        topic2top_terms[topic_index] << term_name
+
+        f.puts [topic_index, term_name, weight].join " "
+      end
+    end
+  end
+
+
+
+
   AbortIf.logger.info { "Finding top terms for each document" }
-  terms_closest_to_docs = svd_VS_US_dis_fname + ".terms_closest_to_docs.txt"
+  terms_closest_to_docs = File.join top_terms_by_doc_dir, "top_terms_by_doc.txt"
   doc2top_terms = {}
   File.open(terms_closest_to_docs, "w") do |f|
     # Get genes closest to each doc
@@ -371,50 +429,9 @@ end
     end
   end
 
-  top_terms_fname = "#{td_matrix_outf}.top_terms_by_topic.txt"
-
-  if File.exist? top_terms_fname
-    AbortIf.logger.info { "#{top_terms_fname} already exists. Deleting it." }
-
-    File.delete top_terms_fname
-  end
-
   rscript_str = %Q{
 library("lsa")
 library("ape")
-
-write.top.terms <- function(dat, file, n=10)
-{
-    if (n > nrow(dat)) {
-        stop("n must be <= nrow(dat)")
-    }
-
-    abs.dat <- abs(dat)
-
-    rows <- c()
-    for (topic in 1:ncol(dat)) {
-        print(topic)
-        top.n <- (abs.dat[order(abs.dat[, topic],
-                                decreasing=T), ][1:n, ])
-        seq.names <- paste(rownames(top.n), collapse="\\t")
-
-        write(paste(topic, seq.names, sep="\\t"),
-              file=file,
-              ## sep="\t",
-              append=T)
-    }
-}
-
-print("Reading idx2term")
-term.names <- as.vector(read.table("#{ordered_term_names}", sep=" ", col.names=c("terms"))$terms)
-
-print("Reading U")
-## Rows are terms, columns are the eigenvectors
-U <- as.matrix(read.table("#{svd_U_fname}", sep=" ", row.names=term.names))
-
-print("Writing top terms")
-## These are top terms with respect to each topic
-write.top.terms(U, "#{top_terms_fname}", n=#{opts[:how_many_terms]})
 
 print("Reading doc dist")
 proj.docs.dist <- as.dist(read.table("#{svd_VS_dis_fname_for_r}", header=T, sep=" "))
@@ -432,41 +449,18 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
   end
 
   cmd = "Rscript #{tmp_r_script_fname}"
-  Process.run_and_time_it! "Generating trees and top terms", cmd
+  Process.run_and_time_it! "Generating trees", cmd
 
-  # Get the actual sequences for top seqs
-  ids_to_grep_fname = "#{top_terms_fname}.ids.txt"
-
-  AbortIf.logger.info { "Reading top terms" }
-  topic2seqid = {}
-  File.open(top_terms_fname, "rt").each_line do |line|
-    unless line.start_with? "topic"
-      topic, *terms = line.chomp.split " "
-
-      abort_if topic2seqid.has_key?(topic),
-               "Topic #{topic} is repeated in #{top_terms_fname}"
-
-      topic2seqid[topic] = Set.new terms
-    end
-  end
-
-  # Make the outfiles
-  top_fasta_fnames = {}
-  topic2seqid.each do |topic, seqid|
-    top_fasta_fnames[topic] =
-      File.open("#{ids_to_grep_fname}.topic_#{topic.to_i+1}_seqs.fa", "w")
+  top_terms_per_topic_fnames = {}
+  topic2top_terms.each do |topic, terms|
+    top_terms_per_topic_fnames[topic] =
+      File.open(File.join(top_terms_by_topic_dir, "top_terms.topic_#{topic.to_i}.fa"), "w")
 
   end
 
   top_terms_per_doc_fnames = {}
   doc2top_terms.each do |doc, terms|
-    if metadata_group_idx.zero?
-      metadata_group_label = "original"
-    else
-      metadata_group_label = label2outf.to_a[metadata_group_idx-1].first
-    end
-
-    top_terms_per_doc_fnames[doc] = File.open(File.join(opts[:outdir], "top_terms.metadata_group_#{metadata_group_label}.label_#{doc}.fa"), "w")
+    top_terms_per_doc_fnames[doc] = File.open(File.join(top_terms_by_doc_dir, "top_terms.doc_#{doc}.fa"), "w")
   end
 
   AbortIf.logger.info { "Grepping seq ids" }
@@ -478,16 +472,16 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
       end
     end
 
-    topic2seqid.each do |topic, headers|
+    topic2top_terms.each do |topic, headers|
       if headers.include? rec.header
         # seqs can be top seq in multiple topics
-        top_fasta_fnames[topic].puts rec
+        top_terms_per_topic_fnames[topic].puts rec
       end
     end
   end
 
   # Close the files
-  top_fasta_fnames.each do |topic, f|
+  top_terms_per_topic_fnames.each do |topic, f|
     f.close
   end
 
