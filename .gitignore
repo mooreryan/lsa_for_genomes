@@ -1,5 +1,6 @@
 .DS_Store
 .lock-wscript
+.ruby-*
 bin/redsvd
 bin/td_matrix*
 bin/td_old*

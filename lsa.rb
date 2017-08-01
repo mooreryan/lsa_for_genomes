@@ -65,7 +65,7 @@ opts = Trollop.options do
   Latent semantic analysis pipeline for genomes and metagenomes.
 
   --num-topics is the LIMIT on topics. You may see fewer depending on
-    the data.
+    the data. If you pass --num-topics 0, all topics will be used.
 
   Options:
   EOS
@@ -93,8 +93,9 @@ opts = Trollop.options do
       default: 4)
 
   opt(:num_topics,
-      "The maximum number of topics to calculate for LSA",
-      default: 20)
+      "The maximum number of topics to calculate for LSA" +
+      "Use zero for maximum number of topics.",
+      default: 0)
   opt(:percent_of_terms,
       "What percentage of top terms do you want to look at?",
       default: 1)
@@ -293,8 +294,12 @@ end
     idx2term[idx.to_i] = term
   end
 
-
-
+  # If the user didn't specify number of topics to use, select the max
+  # possible topics. I.e., the smaller of number of terms and number
+  # of docs.
+  if opts[:num_topics].zero?
+    opts[:num_topics] = [idx2term.count, idx2doc.count].min
+  end
 
   # LSA
 
