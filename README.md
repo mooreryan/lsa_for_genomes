@@ -18,10 +18,12 @@ The pipleline has the following dependencies.
 - [parse_fasta](https://rubygems.org/gems/parse_fasta)
 - [trollop](https://rubygems.org/gems/trollop)
 
-These can be installed from RubyGems like so
+If you need to install RubyGems, please go [here](https://rubygems.org/pages/download/).
+
+Using RubyGems, the gems may be installed like so....
 
 ```
-gem install aii abort_if lsa parse_fasta trollop
+$ gem install aii abort_if lsa parse_fasta trollop
 ```
 
 ### R libraries
@@ -93,44 +95,41 @@ $ ./lsa.rb -h
 Here is an example of running the pipeline on the three test files.
 
 ```
-$ ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -o lsa_test
+$ ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -o output
 ```
 
 *Note*: In this case `mmseqs` was on my path already, so I could do the little backtick trick and pass that to `-m`.
 
-And you'll get a whole bunch of output...
+And you'll get a whole bunch of output. Here is the structure of the output directory.
 
 ```
-$ tree lsa_test/
+$ tree -d output/
+output/
+├── clustering
+├── logs
+├── metadata_groups
+│   ├── metadata_group_1
+│   │   ├── r
+│   │   ├── redsvd
+│   │   ├── td_matrix
+│   │   ├── top_terms_by_doc
+│   │   ├── top_terms_by_topic
+│   │   └── trees
+│   ├── metadata_group_2
+│   │   ├── r
+│   │   ├── redsvd
+│   │   ├── td_matrix
+│   │   ├── top_terms_by_doc
+│   │   ├── top_terms_by_topic
+│   │   └── trees
+│   └── original
+│       ├── r
+│       ├── redsvd
+│       ├── td_matrix
+│       ├── top_terms_by_doc
+│       ├── top_terms_by_topic
+│       └── trees
+└── prepped_seqs
 
-lsa_output/
-├── all_prepped.fa
-├── all_prepped.fa.DB
-├── all_prepped.fa.DB.index
-├── all_prepped.fa.DB.lookup
-├── all_prepped.fa.DB_h
-├── all_prepped.fa.DB_h.index
-├── all_prepped.fa.clu
-├── all_prepped.fa.clu.index
-├── all_prepped.fa.clu.tsv
-├── all_prepped.fa.clu.tsv.sorted
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.idx_to_doc_map.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.idx_to_term_map.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.rows_are_terms.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.singular_values.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_1_seqs.fa
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_2_seqs.fa
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.top_terms.txt.ids.txt.topic_3_seqs.fa
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_dist.txt.newick.txt
-├── all_prepped.fa.clu.tsv.sorted.seanie_lsa.td_matrix.mm.txt.lsa_py.transformed_doc_matrix.txt
-├── lsa_err.txt
-├── lsa_out.txt
-└── make_tree.r
-
-0 directories, 25 files
+25 directories
 ```
-
-The pipeline is still under active development, so expect this to change.
