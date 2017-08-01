@@ -94,7 +94,7 @@ opts = Trollop.options do
 
   opt(:num_topics,
       "The maximum number of topics to calculate for LSA" +
-      "Use zero for maximum number of topics.",
+      " (Use zero for maximum number of topics.)",
       default: 0)
   opt(:percent_of_terms,
       "What percentage of top terms do you want to look at?",
