@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION   = "0.4.0"
+  PIPELINE_VERSION   = "0.4.1"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -53,7 +53,7 @@ def clean_str str
   str.strip.gsub(/[^\p{Alnum}_]+/, "_").gsub(/_+/, "_")
 end
 
-THIS_DIR = File.join File.dirname __FILE__
+THIS_DIR = File.absolute_path(File.join File.dirname __FILE__)
 
 opts = Trollop.options do
   version Lsa::VERSION_BANNER
@@ -70,7 +70,7 @@ opts = Trollop.options do
   Options:
   EOS
 
-  opt(:bin_dir,
+  opt(:binary_dir,
       "Folder with the LSA scripts and binaries",
       default: File.join(THIS_DIR, "bin"))
   opt(:mmseqs,
@@ -104,7 +104,7 @@ KEEP_PERCENT = opts[:percent_of_terms]
 abort_unless KEEP_PERCENT > 0 && KEEP_PERCENT <= 100,
              "--how-many-terms must be > 0 and <= 100"
 
-abort_unless Dir.exist?(opts[:bin_dir]),
+abort_unless Dir.exist?(opts[:binary_dir]),
              "The directory specified by --bin-dir doesn't exist"
 
 ######################################################################
@@ -112,10 +112,10 @@ abort_unless Dir.exist?(opts[:bin_dir]),
 ################
 
 
-prep_seq_files = File.join opts[:bin_dir], "prep_seq_files.rb"
-cluster = File.join opts[:bin_dir], "cluster.rb"
-td_matrix = File.join opts[:bin_dir], "td_matrix"
-redsvd = File.join opts[:bin_dir], "redsvd"
+prep_seq_files = File.join opts[:binary_dir], "prep_seq_files.rb"
+cluster = File.join opts[:binary_dir], "cluster.rb"
+td_matrix = File.join opts[:binary_dir], "td_matrix"
+redsvd = File.join opts[:binary_dir], "redsvd"
 mmseqs = opts[:mmseqs]
 
 abort_unless_command prep_seq_files
@@ -430,7 +430,6 @@ end
   end
 
   rscript_str = %Q{
-library("lsa")
 library("ape")
 
 print("Reading doc dist")
