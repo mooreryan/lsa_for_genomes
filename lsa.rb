@@ -18,8 +18,41 @@ module Aai
   extend Aai::Utils
 end
 
+def command? fname
+  File.exist?(fname) &&
+    !File.directory?(fname) &&
+    File.executable?(fname)
+end
+
+# Will return nil if the command doesn't exist or there are other
+# failures.
+def run_and_return_stdout *a, &b
+  exit_status, stdout, stderr = systemu *a, &b
+
+  if exit_status.exitstatus.zero?
+    stdout.chomp
+  else
+    nil
+  end
+end
+
+def annotated_version default_version
+  git_description_fname = File.join(".git", "description")
+
+  # Do all of this checking since the user may have moved this file
+  # away from the original directory.
+  if File.exist?(git_description_fname) &&
+     File.read(git_description_fname).chomp == "LSA for (Meta)Genomes"
+
+    cmd = "git describe --long --tags"
+    run_and_return_stdout cmd
+  else
+    default_version
+  end
+end
+
 module Lsa
-  PIPELINE_VERSION   = "0.4.1"
+  PIPELINE_VERSION = annotated_version "0.4.1"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -110,8 +143,6 @@ def run_td_matrix_counts td_matrix,
     Process.run_and_time_it! "Building term-doc matrix", cmd
   end
 end
-
-
 
 THIS_DIR = File.absolute_path(File.join File.dirname __FILE__)
 
