@@ -1,6 +1,8 @@
 .DS_Store
+.Rhistory
 .lock-wscript
 .ruby-*
+bin/bisecting_kmeans*
 bin/redsvd
 bin/td_matrix*
 bin/td_old*

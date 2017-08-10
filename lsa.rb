@@ -1,10 +1,48 @@
 #!/usr/bin/env ruby
 
+PLOT_FUNCTION = %Q{
+## This cutoff index is 1-based
+plot.colored.by.inflection.point <- function(dat, cutoff, xlab="Rank", ylab="Weight")
+{
+    par(mfrow=c(1,1), lwd=2, cex.axis=0.8, cex.lab=1.2)
+
+    col1 <- rgb(1, 0, 0, 0.5)
+    col2 <- rgb(0, 0, 0, 0.5)
+
+    plot(dat,
+         xlab="", ylab="",
+         bty="n",
+         axes=F,
+         type="n")
+
+    grid(lwd=1)
+    box()
+    axis(1)
+    axis(2, las=1)
+    title(xlab=xlab, line=2.5)
+    title(ylab=ylab, line=2.75)
+
+    points(x=1:cutoff,
+           y=dat[1:cutoff],
+           col=col1,
+           pch=16,
+           cex=0.8)
+    points(x=cutoff+1:length(dat),
+           y=dat[cutoff+1:length(dat)],
+           col=col2,
+           pch=16,
+           cex=0.8)
+}
+}
+
 Signal.trap("PIPE", "EXIT")
+
+require "tempfile"
 
 require "aai"
 require "abort_if"
 require "fileutils"
+require "matrix"
 require "set"
 require "trollop"
 
@@ -19,7 +57,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.4.1"
+  PIPELINE_VERSION = "0.5.0"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -111,6 +149,35 @@ def run_td_matrix_counts td_matrix,
   end
 end
 
+def vector_projection a, b
+  (a.dot(b) / b.dot(b).to_f) * b
+end
+
+def vector_rejection a, b
+  a - vector_projection(a, b)
+end
+
+def index_of_max ary
+  ary.each_with_index.max.last
+end
+
+# Returns the index of the inflection point
+def inflection_point dat
+  num_points = dat.length
+  first_point = Vector[0, dat.first]
+  last_point = Vector[num_points-1, dat.last]
+
+  b = last_point - first_point
+
+  dists = (1..num_points-2).map do |idx|
+    this_point = Vector[idx, dat[idx]]
+    a = this_point - first_point
+    vector_rejection(a, b).norm
+  end
+
+  index_of_max(dists) + 1 # add one for the 1.. range
+end
+
 THIS_DIR = File.absolute_path(File.join File.dirname __FILE__)
 
 opts = Trollop.options do
@@ -124,6 +191,8 @@ opts = Trollop.options do
 
   --num-topics is the LIMIT on topics. You may see fewer depending on
     the data. If you pass --num-topics 0, all topics will be used.
+
+  --percent-of-terms-per-topic has an automatic mode, pass 0
 
   Options:
   EOS
@@ -152,16 +221,17 @@ opts = Trollop.options do
 
   opt(:num_topics,
       "The maximum number of topics to calculate for LSA" +
-      " (Use zero for maximum number of topics.)",
+      " (Use 0 for maximum number of topics.)",
       default: 0)
-  opt(:percent_of_terms,
-      "What percentage of top terms do you want to look at?",
-      default: 1)
+  opt(:percent_of_terms_per_topic,
+      "What percentage of top terms per topic do you want to look at?" +
+      " (Use 0 for automatic)",
+      default: 0)
 end
 
-KEEP_PERCENT = opts[:percent_of_terms]
-abort_unless KEEP_PERCENT > 0 && KEEP_PERCENT <= 100,
-             "--how-many-terms must be > 0 and <= 100"
+abort_unless opts[:percent_of_terms_per_topic] >= 0 &&
+             opts[:percent_of_terms_per_topic] <= 100,
+             "--percent-of-terms-per-topic must be >= 0 and <= 100"
 
 abort_unless Dir.exist?(opts[:binary_dir]),
              "The directory specified by --bin-dir doesn't exist"
@@ -336,8 +406,14 @@ end
 
   redsvd_outf_base =
     File.join redsvd_dir, "svd"
-  tmp_r_script_fname =
+
+  make_trees_r_script_fname =
     File.join rscript_dir, "make_tree.r"
+
+  plot_by_topic_term_weights_r_script_fname =
+    File.join rscript_dir, "by_topic_term_weights.r"
+
+
   newick_docs_fname =
     File.join trees_dir, "doc_dist_tree.newick.txt"
 
@@ -352,8 +428,13 @@ end
 
   top_terms_by_topic =
     File.join top_terms_by_topic_dir, "top_terms_by_topic.txt"
-  terms_closest_to_docs =
+  top_terms_by_topic_plot_basename =
+    File.join top_terms_by_topic_dir, "top_terms_plot"
+
+  top_terms_by_doc =
     File.join top_terms_by_doc_dir, "top_terms_by_doc.txt"
+  top_terms_by_doc_plot_basename =
+    File.join top_terms_by_doc_dir, "top_terms_plot"
 
   run_td_matrix_counts td_matrix,
                        cluster_outfname,
@@ -369,10 +450,8 @@ end
   num_docs  = idx2doc.count
   num_terms = idx2term.count
 
-  num_terms_to_keep = (num_terms * (KEEP_PERCENT / 100.0)).round
-  AbortIf.logger.info do
-    "Keeping #{num_terms_to_keep} of #{num_terms} terms for each doc"
-  end
+  num_terms_to_keep = nil
+  sorted_weights_with_index = nil
 
   # If the user didn't specify number of topics to use, select the max
   # possible topics. I.e., the smaller of number of terms and number
@@ -396,60 +475,134 @@ end
       "weight not the projection)"
   end
 
+  # Read the matrix
   topic2top_terms = {}
+  topics = File.open(svd_US_fname, "rt").
+           read.
+           chomp.
+           split("\n").
+           map { |line| line.split(" ").map(&:to_f) }.
+           transpose
 
+  # For the R graphs
+  num_terms_to_keep_per_topic = []
+  topic_plot_fnames = []
+
+  # Write top terms
   File.open(top_terms_by_topic, "w") do |f|
-    topic2top_terms = {}
-    all_weights = []
-    File.open(svd_U_fname, "rt").each_line.with_index do |line, term_idx|
-      *weights = line.chomp.split(" ").map { |weight| weight.to_f }
-
-      weights_with_term_idx = weights.map { |weight| [term_idx, weight, weight.abs] }
-
-      all_weights << weights_with_term_idx
-      # TODO assert correct number of topics
-    end
-
-    num_topics = all_weights.first.count
-    num_topics.times do |topic_idx|
-      topic2top_terms[topic_idx] = Set.new
-    end
-
-    # Now get the top terms for the topics. In this case, the higher
-    # the weight, the better it is.
-    all_weights.
-      transpose. # iterate over topics
-      map do |elem|
-      elem.
-        sort_by { |term_idx, weight, abs_weight| abs_weight }.
-        reverse.
-        take(num_terms_to_keep) # we want only the num_terms_to_keep highest weights per topic
-    end.each_with_index do |elem, topic_index| # each element holds weights for topics
-      elem.each do |term_idx, weight, abs_weight|
+    topics.each_with_index do |topic, topic_idx|
+      sorted_weights_with_index = topic.map.
+                                  with_index do |weight, term_idx|
         abort_unless idx2term.has_key?(term_idx),
                      "#{term_idx} missing from idx2term"
 
         term_name = idx2term[term_idx]
-        topic2top_terms[topic_index] << term_name
 
-        f.puts [topic_index, term_name, weight].join " "
+        [term_name, weight, weight.abs]
+      end.sort_by do |term, weight, abs_weight|
+        abs_weight
+      end.reverse
+
+      if opts[:percent_of_terms_per_topic].zero?
+        sorted_abs_weights = sorted_weights_with_index.map(&:last)
+        num_terms_to_keep = inflection_point(sorted_abs_weights) + 1
+      else
+        num_terms_to_keep = (num_terms * (opts[:percent_of_terms_per_topic] / 100.0)).round
+      end
+      num_terms_to_keep_per_topic << num_terms_to_keep
+      topic_plot_fnames <<
+        "#{top_terms_by_topic_plot_basename}." +
+        "topic_#{topic_idx}.pdf"
+
+      AbortIf.logger.info do
+        "Keeping #{num_terms_to_keep} of #{num_terms} terms for " +
+          "topic #{topic_idx}"
+      end
+
+      top_terms = sorted_weights_with_index.
+                  take(num_terms_to_keep)
+
+      # Keep the term names in the ht
+      topic2top_terms[topic_idx] = Set.new(top_terms.map(&:first))
+
+      top_terms.each do |term, weight, abs_weight|
+        f.puts [topic_idx, term, weight].join " "
       end
     end
   end
 
+  # Plot the term weights per topic plots
+  rscript_str = %Q{
+#{PLOT_FUNCTION}
 
+dat <- read.table("#{svd_US_fname}", sep=" ")
+
+cutoffs <- c(#{num_terms_to_keep_per_topic.join(", ")})
+plot_fnames <- c(#{topic_plot_fnames.map{|str| %Q["#{str}"]}.join(", ")})
+
+for (cidx in 1:ncol(dat)) {
+    pdf(plot_fnames[cidx], width=8, height=5)
+    plot.colored.by.inflection.point(sort(abs(dat[, cidx]), decreasing=T), cutoffs[cidx])
+    invisible(dev.off())
+}
+
+}
+
+  File.open(plot_by_topic_term_weights_r_script_fname, "w") do |f|
+    f.puts rscript_str
+  end
+
+  cmd = "Rscript #{plot_by_topic_term_weights_r_script_fname}"
+  Process.run_and_time_it! "Ploting by topic term weights", cmd
+
+  ##########
+  ##########
+  ##########
+  ##########
+
+  doc_names = []
   AbortIf.logger.info { "Finding top terms for each document" }
-  doc2top_terms = {}
+  term2cluster = {}
+  # This is for coloring the points for each of the graphs in R
+  num_terms_to_keep_per_document = []
 
-  File.open(terms_closest_to_docs, "w") do |f|
-    # Get genes closest to each doc
+  # Inflection point is not great for term to doc weights as they
+  # generally cluster in groups
+  File.open(top_terms_by_doc, "w") do |top_terms_f|
+    top_terms_f.puts %w[doc_name doc_idx term_name term_idx cluster dist].join " "
+    # Get terms closest to each doc. Each line is the dists to each
+    # term for that doc.
     File.open(svd_VS_US_dis_fname, "rt").each_line.with_index do |line, doc_idx|
-      *dists = line.chomp.split " "
-
+      # Need some output files
       abort_unless idx2doc.has_key?(doc_idx),
                    "Doc index #{doc_idx} is missing from the idx2doc hash table"
-
       doc_name = idx2doc[doc_idx]
+      doc_names << doc_name
+
+      doc_dir = File.join top_terms_by_doc_dir, doc_name
+      FileUtils.mkdir_p doc_dir
+
+      dists_fname =
+        File.join doc_dir,
+                  "term_doc_dists.txt"
+      clusters_fname =
+        File.join doc_dir,
+                  "term_doc_dists_clusters.txt"
+      kmeans_r_fname =
+        File.join rscript_dir,
+                  "term_doc_dists_kmeans.r"
+      centroids_plot_fname =
+        File.join doc_dir,
+                  "term_doc_dists_cluster_centroids_plot.pdf"
+      dists_plot_fname =
+        File.join doc_dir,
+                  "term_doc_dists_plot.pdf"
+
+      *dists = line.chomp.split " "
+
+      File.open(dists_fname, "w") do |f|
+        dists.each { |dist| f.puts dist }
+      end
 
       abort_unless dists.count == idx2term.count,
                    "Number of terms from #{svd_VS_US_dis_fname} does not match number of terms in idx2term hash table."
@@ -457,22 +610,99 @@ end
       dists_with_idx =
         dists.map.with_index { |dist, term_idx| [term_idx, dist] }
 
-      # lowest distances are the best
-      closest_terms =
-        dists_with_idx.sort_by { |term_idx, dist| dist }.
-        take(num_terms_to_keep)
+      dist_counts =
+        dists.group_by(&:itself).map { |dist, ary| [dist, ary.count] }.sort_by { |dist, count| count}.reverse
 
-      doc2top_terms[doc_name] = Set.new
-      closest_terms.each do |term_idx, dist|
+      # No + 1 because we want one less than the inflection point
+      num_centroids = inflection_point(dist_counts.map(&:last))
+      num_centroids = 2 if num_centroids == 1
+      centroids = dist_counts.take(num_centroids).map(&:first)
+      AbortIf.logger.info { "Centroids for #{doc_name} are #{centroids}" }
+
+      # START HERE need to make this R code good, and change the above file names
+      rscript_str = %Q{
+#{PLOT_FUNCTION}
+
+num.centroids <- #{num_centroids}
+dat <- read.table("#{dists_fname}", col.names=c("dist"))
+dat.sorted <- dat[with(dat, order(dist)),]
+dist.counts <- c(#{dist_counts.map { |dist, count| count }.join(", ")})
+
+## Get the clusters
+k <- kmeans(dat.sorted, c(#{centroids.join(", ")}))
+write.table(k$cluster, "#{clusters_fname}", row.names=F, col.names=F, quote=F)
+
+## Plot dist counts to show how number of centroids was determined
+## TODO should make this more tolerant like call a mean dist equal if
+## within a certain tolerance?
+pdf("#{centroids_plot_fname}", width=8, height=5)
+plot.colored.by.inflection.point(dist.counts, num.centroids, ylab="Distance")
+invisible(dev.off())
+
+## Plot how the data fits into the clusters
+pdf("#{dists_plot_fname}", width=8, height=5)
+par(mfrow=c(1,1), lwd=2, cex.axis=0.8, cex.lab=1.2)
+plot(dat.sorted, xlab="", ylab="", bty="n", axes=F, type="n")
+grid(lwd=1)
+box()
+axis(1)
+axis(2, las=1)
+title(xlab="Rank", line=2.5)
+title(ylab="Distance", line=2.75)
+points(dat.sorted, col=rainbow(num.centroids)[k$cluster], pch=16, cex=0.8)
+invisible(dev.off())
+}
+
+      File.open(kmeans_r_fname, "w") do |f|
+        f.puts rscript_str
+      end
+
+      Process.run_and_time_it! "Running kmeans", "Rscript #{kmeans_r_fname}"
+
+      clusters = File.open(clusters_fname, "rt").read.chomp.split("\n")
+
+      dists_w_cluster =
+        dists.map.with_index { |dist, idx| [clusters[idx], dist, idx] }
+
+      dists_w_cluster.each do |cluster, dist, term_idx|
         abort_unless idx2term.has_key?(term_idx),
                      "Missing term index #{term_idx} from the idx2term hash table."
 
         term_name = idx2term[term_idx]
-        doc2top_terms[doc_name] << term_name
-        f.puts [doc_name, term_name, dist].join " "
+
+        # TODO this might break if the seq headers are not unique
+        # across the different input files
+        #
+        # Need to key the term names not on the whole header, but the
+        # part after the tilde, because the part in front of the tilde
+        # (the doc part) changes for the non-original metadata
+        # categories
+        term_name_no_tilde = term_name.split("~").last
+
+        # The term2cluster hash table...each term will have a cluster
+        # number for each doc.
+        if term2cluster.has_key? term_name_no_tilde
+          abort_if term2cluster[term_name_no_tilde].has_key?(doc_name),
+                   "Term #{term_name_no_tilde} was repeated for doc #{doc_name} in term2cluster hash table"
+
+          term2cluster[term_name_no_tilde][doc_name] = cluster
+        else
+          term2cluster[term_name_no_tilde] = { doc_name => cluster }
+        end
+
+        top_terms_f.puts [doc_name, doc_idx, term_name_no_tilde, term_idx, cluster, dist].join " "
       end
     end
   end
+
+  abort_unless term2cluster.count == idx2term.count,
+               "There were #{idx2term.count} terms in idx2term, but term2cluster only has #{term2cluster.count} terms"
+
+  ##########
+  ##########
+  ##########
+  ##########
+
 
   AbortIf.logger.info { "Converting VS.dis file to R format" }
   # Convert the VS.dis file to an R ready format
@@ -509,51 +739,74 @@ end
   rscript_str = %Q{
 library("ape")
 
-print("Reading doc dist")
 proj.docs.dist <- as.dist(read.table("#{svd_VS_dis_fname_for_r}", header=T, sep=" "))
 
-print("Making doc tree")
 proj.docs.dist.tree <- as.phylo(hclust(proj.docs.dist, method="average"))
 
-print("Printing doc tree")
 write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
-
 }
 
-  File.open(tmp_r_script_fname, "w") do |f|
+  File.open(make_trees_r_script_fname, "w") do |f|
     f.puts rscript_str
   end
 
-  cmd = "Rscript #{tmp_r_script_fname}"
+  cmd = "Rscript #{make_trees_r_script_fname}"
   Process.run_and_time_it! "Generating trees", cmd
 
   top_terms_per_topic_fnames = {}
   topic2top_terms.each do |topic, terms|
-    fname = File.join top_terms_by_topic_dir,
+    dir = File.join top_terms_by_topic_dir, "seqs"
+    FileUtils.mkdir_p dir
+    fname = File.join dir,
                       "top_terms.topic_#{topic.to_i}.fa"
 
     top_terms_per_topic_fnames[topic] = File.open fname, "w"
   end
 
-  top_terms_per_doc_fnames = {}
-  doc2top_terms.each do |doc, terms|
-    fname = File.join top_terms_by_doc_dir,
-                      "top_terms.doc_#{doc}.fa"
+  term_doc_dist_cluster_fnames = {}
+  doc_names.each do |doc_name|
+    abort_if term_doc_dist_cluster_fnames.has_key?(doc_name),
+             "Doc #{doc_name} is repeated in term_doc_dist_cluster_fnames hash table"
 
-    top_terms_per_doc_fnames[doc] = File.open fname, "w"
+    # This will need to be filled out as you read the cluster file?
+    term_doc_dist_cluster_fnames[doc_name] = {}
   end
 
   AbortIf.logger.info { "Grepping seq ids" }
   # Grep them from the prepped file
   ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
-    doc2top_terms.each do |doc, headers|
-      if headers.include? rec.header
-        top_terms_per_doc_fnames[doc].puts rec
+    # If the sequence is in this file but not in term2cluster hash
+    # table, then that sequence was NOT a cluster rep seq from MMseqs2
+    # clustering
+
+    header_no_tilde = rec.header.split("~").last
+    rec.header = header_no_tilde
+
+    if term2cluster.has_key? header_no_tilde
+      term2cluster[header_no_tilde].each do |doc_name, cluster|
+        abort_unless term_doc_dist_cluster_fnames.has_key?(doc_name),
+                     "Doc #{doc_name} present in term2cluster[header_no_tilde] but missing from term_doc_dist_cluster_fnames hash table"
+
+        unless term_doc_dist_cluster_fnames[doc_name].has_key?(cluster)
+          doc_dir = File.join top_terms_by_doc_dir, doc_name
+          abort_unless File.exist?(doc_dir),
+                       "#{doc_dir} does not exist, but it should have already been created"
+          seqs_dir = File.join doc_dir, "seqs"
+          FileUtils.mkdir_p seqs_dir
+
+          fname = File.join seqs_dir, "#{doc_name}_term_doc_dist_cluster_#{cluster}.fa"
+          term_doc_dist_cluster_fnames[doc_name][cluster] = File.open fname, "w"
+        end
+
+        term_doc_dist_cluster_fnames[doc_name][cluster].puts rec
       end
     end
 
     topic2top_terms.each do |topic, headers|
-      if headers.include? rec.header
+      # TODO this will break if headers are not unique across original files?
+      headers_no_tilde = Set.new(headers.map{|header| header.split("~").last})
+
+      if headers_no_tilde.include? header_no_tilde
         # seqs can be top seq in multiple topics
         top_terms_per_topic_fnames[topic].puts rec
       end
@@ -565,9 +818,9 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
     f.close
   end
 
-  top_terms_per_doc_fnames.each do |doc, f|
-    f.close
-  end
+  # top_terms_per_doc_fnames.each do |doc, f|
+  #   f.close
+  # end
 end
 
 ##################

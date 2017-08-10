@@ -49,7 +49,7 @@ test_lsa_no_mapping: $(MAIN)
 	rm -r output/; time ./lsa.rb -i test_files/*.faa.gz
 
 test_lsa_short: $(MAIN)
-	time ./lsa.rb -i test_files/*.faa.gz -a test_files/mapping.txt
+	rm -r output/metadata_groups; time ./lsa.rb -i test_files/*.faa.gz -a test_files/mapping.txt
 
 test_lsa_small:
 	rm -r output/; time ./lsa.rb -i test_files/small/* -a test_files/mapping.txt
