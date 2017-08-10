@@ -246,12 +246,14 @@ cluster = File.join opts[:binary_dir], "cluster.rb"
 td_matrix = File.join opts[:binary_dir], "td_matrix"
 redsvd = File.join opts[:binary_dir], "redsvd"
 mmseqs = opts[:mmseqs]
+make_color_maps = File.join opts[:binary_dir], "make_color_maps.rb"
 
 abort_unless_command prep_seq_files
 abort_unless_command cluster
 abort_unless_command td_matrix
 abort_unless_command redsvd
 abort_unless_command mmseqs
+abort_unless_command make_color_maps
 
 ################
 # check commands
@@ -319,6 +321,7 @@ abort_if opts[:mapping] && !File.exist?(opts[:mapping]),
 # run the pipeline
 ##################
 
+
 # Prep seq files
 
 if File.exists? prepped_seq_files
@@ -330,6 +333,9 @@ else
   abort_unless_file_exists prepped_seq_files
 end
 
+##########
+##########
+##########
 # Cluster
 
 if all_files_exist? mmseqs_outfiles
@@ -339,9 +345,14 @@ else
   Process.run_and_time_it! "Clustering ORFs", cmd
 end
 
+##########
+##########
+##########
+
 label2outf = nil
 doc2new_doc = nil
 new_cluster_outfnames = []
+color_map_tmp_dir = nil
 if opts[:mapping]
   # Read the mapping file
   AbortIf.logger.info { "Parsing mapping file" }
@@ -354,7 +365,16 @@ if opts[:mapping]
     Lsa::make_new_cluster_files mmseqs_final_outfname,
                                 label2outf,
                                 doc2new_doc
+
+  # Make color maps for iroki
+  color_map_dir = File.join opts[:outdir], "color_maps"
+  cmd = [make_color_maps, opts[:mapping], color_map_dir].join " "
+  Process.run_and_time_it! "Making color maps", cmd
 end
+
+##########
+##########
+##########
 
 # From here on, run everything in a big loop for all the cluster files
 [mmseqs_final_outfname, new_cluster_outfnames].
@@ -442,6 +462,12 @@ end
                        log_out_fname,
                        log_err_fname,
                        td_matrix_outfiles
+
+  # If we are in the original metadata group, move the mapping files
+  # into the trees dir
+  if metadata_group_label == "original"
+    FileUtils.mv color_map_dir, trees_dir
+  end
 
   # Parse the idx to name map files
   idx2doc  = parse_index_mapping_file idx_to_doc_outfname
