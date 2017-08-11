@@ -323,6 +323,8 @@ int main(int argc, char *argv[])
     tokens = tokenize(seq, DOC_SEP);
     doc = tommy_array_get(tokens, 0);
 
+    /* TODO BUG this will break if the cluster file is not sorted on
+       the first column */
     if (!str_eq(term, last_term)) {
       /* starting a new term */
 
@@ -364,6 +366,7 @@ int main(int argc, char *argv[])
                      "Doc: %s not found in counting hash table",
                      doc);
 
+        /* TODO will at least one val always be above 0? */
         if (tmp_kv->val > 0) {
           /* this check is to get the spaces right in the output line */
           if (first_non_zero_doc) { /* first doc/col */
@@ -381,6 +384,8 @@ int main(int argc, char *argv[])
         }
       }
       /* finish off the line */
+      /* TODO if there were no vals above 0, could this put a blank
+         line? */
       fprintf(td_matrix_f, "\n");
 
       /* Zero out the counting hash */
