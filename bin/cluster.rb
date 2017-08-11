@@ -21,6 +21,8 @@ def make_tmp_dir dir
     tmp_dir = File.join dir, "lsa_cluster_tmp.#{rand}"
   end
 
+  FileUtils.mkdir_p tmp_dir
+
   tmp_dir
 end
 
@@ -31,7 +33,7 @@ outdir  = ARGV[3]
 outbase = ARGV[4]
 
 FileUtils.mkdir_p outdir
-tmp_dir = make_tmp_dir
+tmp_dir = make_tmp_dir outdir
 
 outbase_with_dir = File.join outdir, outbase
 
