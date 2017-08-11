@@ -16,6 +16,7 @@ src/*old*
 test_files/9genomes
 test_files/*seanie*
 test_files/.Rhistory
+testdir
 vendor/*.o
 vendor/redsvd-0.2.0/.waf*
 vendor/redsvd-0.2.0/bin
