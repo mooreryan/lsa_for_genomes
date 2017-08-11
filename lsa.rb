@@ -465,7 +465,7 @@ end
 
   # If we are in the original metadata group, move the mapping files
   # into the trees dir
-  if metadata_group_label == "original"
+  if opts[:mapping] && metadata_group_label == "original"
     FileUtils.mv color_map_dir, trees_dir
   end
 
@@ -643,7 +643,7 @@ for (cidx in 1:ncol(dat)) {
       num_centroids = inflection_point(dist_counts.map(&:last))
       num_centroids = 2 if num_centroids == 1
       centroids = dist_counts.take(num_centroids).map(&:first)
-      AbortIf.logger.info { "Centroids for #{doc_name} are #{centroids}" }
+      AbortIf.logger.info { "#{doc_name} will have #{centroids.count}" }
 
       # START HERE need to make this R code good, and change the above file names
       rscript_str = %Q{
@@ -844,9 +844,9 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
     f.close
   end
 
-  # top_terms_per_doc_fnames.each do |doc, f|
-  #   f.close
-  # end
+  top_terms_per_doc_fnames.each do |doc, f|
+    f.close
+  end
 end
 
 ##################
