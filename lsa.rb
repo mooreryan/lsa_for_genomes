@@ -844,8 +844,10 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
     f.close
   end
 
-  top_terms_per_topic_fnames.each do |doc, f|
-    f.close
+  term_doc_dist_cluster_fnames.each do |doc, outfiles|
+    outfiles.each do |cluster, outf|
+      outf.close
+    end
   end
 end
 
