@@ -616,7 +616,7 @@ for (cidx in 1:ncol(dat)) {
                   "term_doc_dists_clusters.txt"
       kmeans_r_fname =
         File.join rscript_dir,
-                  "term_doc_dists_kmeans.r"
+                  "term_doc_dists_kmeans.doc_#{doc_idx}_#{doc_name}.r"
       centroids_plot_fname =
         File.join doc_dir,
                   "term_doc_dists_cluster_centroids_plot.pdf"
