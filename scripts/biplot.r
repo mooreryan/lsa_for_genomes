@@ -1,6 +1,13 @@
 Sys.setlocale(locale = "en_US.UTF-8")
 Sys.setenv(LANG = "en")
 
+num.topics <- function(US, VS)
+{
+    max.topics <- 5
+
+    min(nrow(US), nrow(VS), max.topics)
+}
+
 biplot2 <- function(doc.scores,
                     term.loadings,
                     doc.names,
@@ -86,10 +93,17 @@ doc.projections <- VS / sqrt(n - 1)
 term.loadings <- US / sqrt(n - 1)
 
 pdf("test.pdf", width=8, height=8)
-biplot2(doc.projections,
-        term.loadings,
-        c("E. coli", "S. flexneri", "M. Mazei"),
-        num.terms.to.keep=50,
-        topic.x=1,
-        topic.y=2)
+
+num <- num.topics(US, VS)
+for (x in 1:(num - 1)) {
+    for (y in (x+1):num) {
+        biplot2(doc.projections,
+                term.loadings,
+                c("E. coli", "S. flexneri", "M. Mazei"),
+                num.terms.to.keep=50,
+                topic.x=x,
+                topic.y=y)
+    }
+}
+
 invisible(dev.off())

@@ -5,6 +5,13 @@ def biplot_rscript svd_US_fname, svd_VS_fname, doc_names, pdf_fname
   doc_names_str = doc_names.map { |str| %Q{"#{str}"} }.join(", ")
 
   %Q{
+num.topics <- function(US, VS)
+{
+    max.topics <- 5
+
+    min(nrow(US), nrow(VS), max.topics)
+}
+
 biplot2 <- function(doc.scores,
                     term.loadings,
                     doc.names,
@@ -90,12 +97,17 @@ doc.projections <- VS / sqrt(n - 1)
 term.loadings <- US / sqrt(n - 1)
 
 pdf("#{pdf_fname}", width=8, height=8)
-biplot2(doc.projections,
-        term.loadings,
-        c(#{doc_names_str}),
-        num.terms.to.keep=50,
-        topic.x=1,
-        topic.y=2)
+num <- num.topics(US, VS)
+for (x in 1:(num - 1)) {
+    for (y in (x+1):num) {
+        biplot2(doc.projections,
+                term.loadings,
+                c(#{doc_names_str}),
+                num.terms.to.keep=50,
+                topic.x=x,
+                topic.y=y)
+    }
+}
 invisible(dev.off())
 }
 end
