@@ -1,17 +1,6 @@
 Sys.setlocale(locale = "en_US.UTF-8")
 Sys.setenv(LANG = "en")
 
-US <- read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.US", header=F, sep=" ")
-
-VS <- read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.VS", header=F, sep=" ")
-
-n <- nrow(VS)
-
-## Projections scaled to unit variance
-doc.projections <- VS / sqrt(n - 1)
-
-term.loadings <- US / sqrt(n - 1)
-
 biplot2 <- function(doc.scores,
                     term.loadings,
                     doc.names,
@@ -85,13 +74,22 @@ biplot2 <- function(doc.scores,
          col=doc.color)
 }
 
-## pdf("test.pdf", width=8, height=8)
+US <- read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.US", header=F, sep=" ")
+
+VS <- read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.VS", header=F, sep=" ")
+
+n <- nrow(VS)
+
+## Projections scaled to unit variance
+doc.projections <- VS / sqrt(n - 1)
+
+term.loadings <- US / sqrt(n - 1)
+
+pdf("test.pdf", width=8, height=8)
 biplot2(doc.projections,
         term.loadings,
         c("E. coli", "S. flexneri", "M. Mazei"),
         num.terms.to.keep=50,
         topic.x=1,
         topic.y=2)
-
-
-## invisible(dev.off())
+invisible(dev.off())

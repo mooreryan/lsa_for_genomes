@@ -1,5 +1,105 @@
 #!/usr/bin/env ruby
 
+def biplot_rscript svd_US_fname, svd_VS_fname, doc_names, pdf_fname
+  # Puts quotes around each doc name and joins on commas
+  doc_names_str = doc_names.map { |str| %Q{"#{str}"} }.join(", ")
+
+  %Q{
+biplot2 <- function(doc.scores,
+                    term.loadings,
+                    doc.names,
+                    num.terms.to.keep = 0,
+                    topic.x = 1,
+                    topic.y = 2,
+                    doc.color=rgb(0, 0, 0, 0.7),
+                    term.color=rgb(1, 0, 0, 0.35))
+{
+    ## Lims for square plot that includes the origin
+    all.points <- unlist(c(0,
+                           doc.scores[, c(topic.x, topic.y)],
+                           term.loadings[, c(topic.x, topic.y)]))
+    lims <- c(min(all.points),
+              max(all.points)) * 1.1
+
+    par(mfrow=c(1,1), lwd=2, cex.axis=0.8, cex.lab=1.2)
+
+    plot(doc.scores[, c(topic.x, topic.y)],
+         xlab="",
+         ylab="",
+         bty="n",
+         axes=F,
+         type="n",
+         xlim=lims,
+         ylim=lims)
+
+    grid(lwd=1)
+    box()
+    axis(1)
+    axis(2, las=1)
+    title(xlab = paste("Topic", topic.x, sep=" "),
+          ylab = paste("Topic", topic.y, sep=" "),
+          line=2.5)
+
+    if (num.terms.to.keep == 0) {
+        n <- nrow(term.loadings)
+    } else {
+        n <- round(num.terms.to.keep / 2)
+    }
+
+    abs.term.loadings <- apply(term.loadings, MARGIN=2, FUN=abs)
+    top.term.loadings.x <- order(abs.term.loadings[, topic.x], decreasing=T)[1:n]
+    top.term.loadings.y <- order(abs.term.loadings[, topic.y], decreasing=T)[1:n]
+
+    top.term.loadings <- rbind(term.loadings[top.term.loadings.x, ],
+                               term.loadings[top.term.loadings.y, ])
+
+    arrows(0,
+           0,
+           x1=top.term.loadings[, topic.x],
+           y1=top.term.loadings[, topic.y],
+           col=term.color,
+           length=0.08)
+
+    offset <- abs(lims[1] - lims[2]) / 35
+
+    actual.scores <- cbind(doc.scores[, topic.x],
+                           doc.scores[, topic.y])
+
+    offset.scores <- cbind(doc.scores[, topic.x],
+                           doc.scores[, topic.y] - offset)
+
+    points(actual.scores,
+           pch=16,
+           cex=0.8,
+           col=doc.color)
+    text(offset.scores,
+         labels=doc.names,
+         cex=0.8,
+         col=doc.color)
+}
+
+US <- read.table("#{svd_US_fname}", header=F, sep=" ")
+
+VS <- read.table("#{svd_VS_fname}", header=F, sep=" ")
+
+n <- nrow(VS)
+
+## Projections scaled to unit variance
+doc.projections <- VS / sqrt(n - 1)
+
+term.loadings <- US / sqrt(n - 1)
+
+pdf("#{pdf_fname}", width=8, height=8)
+biplot2(doc.projections,
+        term.loadings,
+        c(#{doc_names_str}),
+        num.terms.to.keep=50,
+        topic.x=1,
+        topic.y=2)
+invisible(dev.off())
+}
+end
+
 PLOT_FUNCTION = %Q{
 ## This cutoff index is 1-based
 plot.colored.by.inflection.point <- function(dat, cutoff, xlab="Rank", ylab="Weight")
@@ -446,6 +546,11 @@ end
   svd_VS_dis_fname_for_r = "#{redsvd_outf_base}.VS.dis.for_r"
   svd_VS_US_dis_fname    = "#{redsvd_outf_base}.VS_to_US.dis"
 
+  biplot_rscript_fname =
+    File.join rscript_dir, "biplots.r"
+  biplot_pdf_fname =
+    File.join redsvd_dir, "biplots.pdf"
+
   top_terms_by_topic =
     File.join top_terms_by_topic_dir, "top_terms_by_topic.txt"
   top_terms_by_topic_plot_basename =
@@ -494,7 +599,23 @@ end
              log_out_fname,
              log_err_fname
 
-  # Make the R script for the tree
+  # Make biplots
+  # APPLE
+  Time.time_it "Making biplots", AbortIf.logger do
+    File.open(biplot_rscript_fname, "w") do |f|
+      doc_names = idx2doc.
+                  sort_by { |idx, name| idx }.
+                  map { |idx, name| name }
+
+      f.puts biplot_rscript svd_US_fname,
+                            svd_VS_fname,
+                            doc_names,
+                            biplot_pdf_fname
+    end
+
+    Process.run_and_time_it! "Plotting biplots",
+                             "Rscript #{biplot_rscript_fname}"
+  end
 
   AbortIf.logger.info do
     "Finding top terms for each topic (weight listed is the raw " +
@@ -798,57 +919,57 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
     term_doc_dist_cluster_fnames[doc_name] = {}
   end
 
-  AbortIf.logger.info { "Grepping seq ids" }
-  # Grep them from the prepped file
-  ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
-    # If the sequence is in this file but not in term2cluster hash
-    # table, then that sequence was NOT a cluster rep seq from MMseqs2
-    # clustering
+  #   AbortIf.logger.info { "Grepping seq ids" }
+  #   # Grep them from the prepped file
+  #   ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
+  #     # If the sequence is in this file but not in term2cluster hash
+  #     # table, then that sequence was NOT a cluster rep seq from MMseqs2
+  #     # clustering
 
-    header_no_tilde = rec.header.split("~").last
-    rec.header = header_no_tilde
+  #     header_no_tilde = rec.header.split("~").last
+  #     rec.header = header_no_tilde
 
-    if term2cluster.has_key? header_no_tilde
-      term2cluster[header_no_tilde].each do |doc_name, cluster|
-        abort_unless term_doc_dist_cluster_fnames.has_key?(doc_name),
-                     "Doc #{doc_name} present in term2cluster[header_no_tilde] but missing from term_doc_dist_cluster_fnames hash table"
+  #     if term2cluster.has_key? header_no_tilde
+  #       term2cluster[header_no_tilde].each do |doc_name, cluster|
+  #         abort_unless term_doc_dist_cluster_fnames.has_key?(doc_name),
+  #                      "Doc #{doc_name} present in term2cluster[header_no_tilde] but missing from term_doc_dist_cluster_fnames hash table"
 
-        unless term_doc_dist_cluster_fnames[doc_name].has_key?(cluster)
-          doc_dir = File.join top_terms_by_doc_dir, doc_name
-          abort_unless File.exist?(doc_dir),
-                       "#{doc_dir} does not exist, but it should have already been created"
-          seqs_dir = File.join doc_dir, "seqs"
-          FileUtils.mkdir_p seqs_dir
+  #         unless term_doc_dist_cluster_fnames[doc_name].has_key?(cluster)
+  #           doc_dir = File.join top_terms_by_doc_dir, doc_name
+  #           abort_unless File.exist?(doc_dir),
+  #                        "#{doc_dir} does not exist, but it should have already been created"
+  #           seqs_dir = File.join doc_dir, "seqs"
+  #           FileUtils.mkdir_p seqs_dir
 
-          fname = File.join seqs_dir, "#{doc_name}_term_doc_dist_cluster_#{cluster}.fa"
-          term_doc_dist_cluster_fnames[doc_name][cluster] = File.open fname, "w"
-        end
+  #           fname = File.join seqs_dir, "#{doc_name}_term_doc_dist_cluster_#{cluster}.fa"
+  #           term_doc_dist_cluster_fnames[doc_name][cluster] = File.open fname, "w"
+  #         end
 
-        term_doc_dist_cluster_fnames[doc_name][cluster].puts rec
-      end
-    end
+  #         term_doc_dist_cluster_fnames[doc_name][cluster].puts rec
+  #       end
+  #     end
 
-    topic2top_terms.each do |topic, headers|
-      # TODO this will break if headers are not unique across original files?
-      headers_no_tilde = Set.new(headers.map{|header| header.split("~").last})
+  #     topic2top_terms.each do |topic, headers|
+  #       # TODO this will break if headers are not unique across original files?
+  #       headers_no_tilde = Set.new(headers.map{|header| header.split("~").last})
 
-      if headers_no_tilde.include? header_no_tilde
-        # seqs can be top seq in multiple topics
-        top_terms_per_topic_fnames[topic].puts rec
-      end
-    end
-  end
+  #       if headers_no_tilde.include? header_no_tilde
+  #         # seqs can be top seq in multiple topics
+  #         top_terms_per_topic_fnames[topic].puts rec
+  #       end
+  #     end
+  #   end
 
-  # Close the files
-  top_terms_per_topic_fnames.each do |topic, f|
-    f.close
-  end
+  #   # Close the files
+  #   top_terms_per_topic_fnames.each do |topic, f|
+  #     f.close
+  #   end
 
-  term_doc_dist_cluster_fnames.each do |doc, outfiles|
-    outfiles.each do |cluster, outf|
-      outf.close
-    end
-  end
+  #   term_doc_dist_cluster_fnames.each do |doc, outfiles|
+  #     outfiles.each do |cluster, outf|
+  #       outf.close
+  #     end
+  #   end
 end
 
 ##################
