@@ -807,7 +807,7 @@ box()
 axis(1)
 axis(2, las=1)
 title(xlab="Rank", line=2.5)
-title(ylab="Distance", line=2.75)
+title(ylab="Count", line=2.75)
 points(dat.sorted, col=rainbow(num.centroids)[k$cluster], pch=16, cex=0.8)
 invisible(dev.off())
 }
