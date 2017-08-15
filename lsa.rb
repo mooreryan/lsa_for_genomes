@@ -85,9 +85,9 @@ biplot2 <- function(doc.scores,
          col=doc.color)
 }
 
-US <- read.table("#{svd_US_fname}", header=F, sep=" ")
+US <- read.table("#{svd_US_fname}", header=F, sep=" ", skip=1)
 
-VS <- read.table("#{svd_VS_fname}", header=F, sep=" ")
+VS <- read.table("#{svd_VS_fname}", header=F, sep=" ", skip=1)
 
 n <- nrow(VS)
 
@@ -243,6 +243,26 @@ def run_redsvd redsvd,
   Process.run_and_time_it! "Running the LSA transform", cmd
 end
 
+def run_process_svd process_svd,
+                    svd_U_fname,
+                    svd_S_fname,
+                    svd_V_fname,
+                    sing_val_inflection_point,
+                    redsvd_dir,
+                    log_out_fname,
+                    log_err_fname
+
+  cmd = "#{process_svd} " +
+        "#{svd_U_fname} " +
+        "#{svd_S_fname} " +
+        "#{svd_V_fname} " +
+        "#{sing_val_inflection_point} " +
+        "#{redsvd_dir} " +
+        "1>> #{log_out_fname} 2>> #{log_err_fname}"
+  Process.run_and_time_it! "Process SVD", cmd
+end
+
+
 def run_td_matrix_counts td_matrix,
                          cluster_outfname,
                          outdir,
@@ -273,21 +293,26 @@ def index_of_max ary
   ary.each_with_index.max.last
 end
 
-# Returns the index of the inflection point
+# Returns the (index + 1) of the inflection point. Doubles as number
+# of items until the inflection point.
 def inflection_point dat
-  num_points = dat.length
-  first_point = Vector[0, dat.first]
-  last_point = Vector[num_points-1, dat.last]
+  if dat.length <= 3
+    dat.length
+  else
+    num_points = dat.length
+    first_point = Vector[0, dat.first]
+    last_point = Vector[num_points-1, dat.last]
 
-  b = last_point - first_point
+    b = last_point - first_point
 
-  dists = (1..num_points-2).map do |idx|
-    this_point = Vector[idx, dat[idx]]
-    a = this_point - first_point
-    vector_rejection(a, b).norm
+    dists = (1..num_points-2).map do |idx|
+      this_point = Vector[idx, dat[idx]]
+      a = this_point - first_point
+      vector_rejection(a, b).norm
+    end
+
+    index_of_max(dists) + 1 # add one for the 1.. range
   end
-
-  index_of_max(dists) + 1 # add one for the 1.. range
 end
 
 THIS_DIR = File.absolute_path(File.join File.dirname __FILE__)
@@ -302,7 +327,8 @@ opts = Trollop.options do
   Latent semantic analysis pipeline for genomes and metagenomes.
 
   --num-topics is the LIMIT on topics. You may see fewer depending on
-    the data. If you pass --num-topics 0, all topics will be used.
+    the data. If you pass --num-topics 0, automatically decide the
+    best number of topics to use for distance matrix.
 
   --percent-of-terms-per-topic has an automatic mode, pass 0
 
@@ -332,8 +358,8 @@ opts = Trollop.options do
       default: 4)
 
   opt(:num_topics,
-      "The maximum number of topics to calculate for LSA" +
-      " (Use 0 for maximum number of topics.)",
+      "The maximum number of topics to use for distance calculation" +
+      " (Use 0 for automatic.)",
       default: 0)
   opt(:percent_of_terms_per_topic,
       "What percentage of top terms per topic do you want to look at?" +
@@ -348,6 +374,9 @@ abort_unless opts[:percent_of_terms_per_topic] >= 0 &&
 abort_unless Dir.exist?(opts[:binary_dir]),
              "The directory specified by --bin-dir doesn't exist"
 
+abort_unless opts[:num_topics] >= 0,
+             "--num-topics must be >= 0"
+
 ######################################################################
 # check commands
 ################
@@ -359,6 +388,7 @@ td_matrix = File.join opts[:binary_dir], "td_matrix"
 redsvd = File.join opts[:binary_dir], "redsvd"
 mmseqs = opts[:mmseqs]
 make_color_maps = File.join opts[:binary_dir], "make_color_maps.rb"
+process_svd = File.join opts[:binary_dir], "process_svd"
 
 abort_unless_command prep_seq_files
 abort_unless_command cluster
@@ -366,6 +396,7 @@ abort_unless_command td_matrix
 abort_unless_command redsvd
 abort_unless_command mmseqs
 abort_unless_command make_color_maps
+abort_unless_command process_svd
 
 ################
 # check commands
@@ -599,20 +630,42 @@ end
   # If the user didn't specify number of topics to use, select the max
   # possible topics. I.e., the smaller of number of terms and number
   # of docs.
-  if opts[:num_topics].zero?
-    opts[:num_topics] = max_topics num_terms, num_docs
-  end
+  # if opts[:num_topics].zero?
+  #   opts[:num_topics] = max_topics num_terms, num_docs
+  # end
 
   # LSA
   run_redsvd redsvd,
              td_matrix_outfname,
              redsvd_outf_base,
-             opts[:num_topics],
+             max_topics(num_terms, num_docs),
              log_out_fname,
              log_err_fname
 
+  sing_vals = File.open(svd_S_fname, "rt").
+              read.
+              chomp.
+              split("\n").
+              drop(1). # The first line is the number of sing_vals
+              map(&:to_f)
+
+  sing_val_inflection_point = inflection_point sing_vals
+
+  if !opts[:num_topics].zero? &&
+     opts[:num_topics] < sing_val_inflection_point
+    sing_val_inflection_point = opts[:num_topics]
+  end
+
+  run_process_svd process_svd,
+                  svd_U_fname,
+                  svd_S_fname,
+                  svd_V_fname,
+                  sing_val_inflection_point,
+                  redsvd_dir,
+                  log_out_fname,
+                  log_err_fname
+
   # Make biplots
-  # APPLE
   Time.time_it "Making biplots", AbortIf.logger do
     File.open(biplot_rscript_fname, "w") do |f|
       doc_names = idx2doc.
@@ -640,6 +693,7 @@ end
            read.
            chomp.
            split("\n").
+           drop(1). # Line specifying nrows, ncols
            map { |line| line.split(" ").map(&:to_f) }.
            transpose
 
@@ -694,7 +748,7 @@ end
   rscript_str = %Q{
 #{PLOT_FUNCTION}
 
-dat <- read.table("#{svd_US_fname}", sep=" ")
+dat <- read.table("#{svd_US_fname}", sep=" ", skip=1)
 
 cutoffs <- c(#{num_terms_to_keep_per_topic.join(", ")})
 plot_fnames <- c(#{topic_plot_fnames.map{|str| %Q["#{str}"]}.join(", ")})
@@ -731,55 +785,57 @@ for (cidx in 1:ncol(dat)) {
     top_terms_f.puts %w[doc_name doc_idx term_name term_idx cluster dist].join " "
     # Get terms closest to each doc. Each line is the dists to each
     # term for that doc.
-    File.open(svd_VS_US_dis_fname, "rt").each_line.with_index do |line, doc_idx|
-      # Need some output files
-      abort_unless idx2doc.has_key?(doc_idx),
-                   "Doc index #{doc_idx} is missing from the idx2doc hash table"
-      doc_name = idx2doc[doc_idx]
-      doc_names << doc_name
+    File.open(svd_VS_US_dis_fname, "rt").each_line.with_index do |line, line_idx|
+      unless line_idx.zero? # skip the header line
+        doc_idx = line_idx - 1
+        # Need some output files
+        abort_unless idx2doc.has_key?(doc_idx),
+                     "Doc index #{doc_idx} is missing from the idx2doc hash table"
+        doc_name = idx2doc[doc_idx]
+        doc_names << doc_name
 
-      doc_dir = File.join top_terms_by_doc_dir, doc_name
-      FileUtils.mkdir_p doc_dir
+        doc_dir = File.join top_terms_by_doc_dir, doc_name
+        FileUtils.mkdir_p doc_dir
 
-      dists_fname =
-        File.join doc_dir,
-                  "term_doc_dists.txt"
-      clusters_fname =
-        File.join doc_dir,
-                  "term_doc_dists_clusters.txt"
-      kmeans_r_fname =
-        File.join rscript_dir,
-                  "term_doc_dists_kmeans.doc_#{doc_idx}_#{doc_name}.r"
-      centroids_plot_fname =
-        File.join doc_dir,
-                  "term_doc_dists_cluster_centroids_plot.pdf"
-      dists_plot_fname =
-        File.join doc_dir,
-                  "term_doc_dists_plot.pdf"
+        dists_fname =
+          File.join doc_dir,
+                    "term_doc_dists.txt"
+        clusters_fname =
+          File.join doc_dir,
+                    "term_doc_dists_clusters.txt"
+        kmeans_r_fname =
+          File.join rscript_dir,
+                    "term_doc_dists_kmeans.doc_#{doc_idx}_#{doc_name}.r"
+        centroids_plot_fname =
+          File.join doc_dir,
+                    "term_doc_dists_cluster_centroids_plot.pdf"
+        dists_plot_fname =
+          File.join doc_dir,
+                    "term_doc_dists_plot.pdf"
 
-      *dists = line.chomp.split " "
+        *dists = line.chomp.split " "
 
-      File.open(dists_fname, "w") do |f|
-        dists.each { |dist| f.puts dist }
-      end
+        File.open(dists_fname, "w") do |f|
+          dists.each { |dist| f.puts dist }
+        end
 
-      abort_unless dists.count == idx2term.count,
-                   "Number of terms from #{svd_VS_US_dis_fname} does not match number of terms in idx2term hash table."
+        abort_unless dists.count == idx2term.count,
+                     "Number of terms from #{svd_VS_US_dis_fname} does not match number of terms in idx2term hash table."
 
-      dists_with_idx =
-        dists.map.with_index { |dist, term_idx| [term_idx, dist] }
+        dists_with_idx =
+          dists.map.with_index { |dist, term_idx| [term_idx, dist] }
 
-      dist_counts =
-        dists.group_by(&:itself).map { |dist, ary| [dist, ary.count] }.sort_by { |dist, count| count}.reverse
+        dist_counts =
+          dists.group_by(&:itself).map { |dist, ary| [dist, ary.count] }.sort_by { |dist, count| count}.reverse
 
-      # No + 1 because we want one less than the inflection point
-      num_centroids = inflection_point(dist_counts.map(&:last))
-      num_centroids = 2 if num_centroids == 1
-      centroids = dist_counts.take(num_centroids).map(&:first)
-      AbortIf.logger.info { "#{doc_name} will have #{centroids.count}" }
+        # No + 1 because we want one less than the inflection point
+        num_centroids = inflection_point(dist_counts.map(&:last))
+        num_centroids = 2 if num_centroids == 1
+        centroids = dist_counts.take(num_centroids).map(&:first)
+        AbortIf.logger.info { "#{doc_name} will have #{centroids.count}" }
 
-      # START HERE need to make this R code good, and change the above file names
-      rscript_str = %Q{
+        # START HERE need to make this R code good, and change the above file names
+        rscript_str = %Q{
 #{PLOT_FUNCTION}
 
 num.centroids <- #{num_centroids}
@@ -812,44 +868,45 @@ points(dat.sorted, col=rainbow(num.centroids)[k$cluster], pch=16, cex=0.8)
 invisible(dev.off())
 }
 
-      File.open(kmeans_r_fname, "w") do |f|
-        f.puts rscript_str
-      end
-
-      Process.run_and_time_it! "Running kmeans", "Rscript #{kmeans_r_fname}"
-
-      clusters = File.open(clusters_fname, "rt").read.chomp.split("\n")
-
-      dists_w_cluster =
-        dists.map.with_index { |dist, idx| [clusters[idx], dist, idx] }
-
-      dists_w_cluster.each do |cluster, dist, term_idx|
-        abort_unless idx2term.has_key?(term_idx),
-                     "Missing term index #{term_idx} from the idx2term hash table."
-
-        term_name = idx2term[term_idx]
-
-        # TODO this might break if the seq headers are not unique
-        # across the different input files
-        #
-        # Need to key the term names not on the whole header, but the
-        # part after the tilde, because the part in front of the tilde
-        # (the doc part) changes for the non-original metadata
-        # categories
-        term_name_no_tilde = term_name.split("~").last
-
-        # The term2cluster hash table...each term will have a cluster
-        # number for each doc.
-        if term2cluster.has_key? term_name_no_tilde
-          abort_if term2cluster[term_name_no_tilde].has_key?(doc_name),
-                   "Term #{term_name_no_tilde} was repeated for doc #{doc_name} in term2cluster hash table"
-
-          term2cluster[term_name_no_tilde][doc_name] = cluster
-        else
-          term2cluster[term_name_no_tilde] = { doc_name => cluster }
+        File.open(kmeans_r_fname, "w") do |f|
+          f.puts rscript_str
         end
 
-        top_terms_f.puts [doc_name, doc_idx, term_name_no_tilde, term_idx, cluster, dist].join " "
+        Process.run_and_time_it! "Running kmeans", "Rscript #{kmeans_r_fname}"
+
+        clusters = File.open(clusters_fname, "rt").read.chomp.split("\n")
+
+        dists_w_cluster =
+          dists.map.with_index { |dist, idx| [clusters[idx], dist, idx] }
+
+        dists_w_cluster.each do |cluster, dist, term_idx|
+          abort_unless idx2term.has_key?(term_idx),
+                       "Missing term index #{term_idx} from the idx2term hash table."
+
+          term_name = idx2term[term_idx]
+
+          # TODO this might break if the seq headers are not unique
+          # across the different input files
+          #
+          # Need to key the term names not on the whole header, but the
+          # part after the tilde, because the part in front of the tilde
+          # (the doc part) changes for the non-original metadata
+          # categories
+          term_name_no_tilde = term_name.split("~").last
+
+          # The term2cluster hash table...each term will have a cluster
+          # number for each doc.
+          if term2cluster.has_key? term_name_no_tilde
+            abort_if term2cluster[term_name_no_tilde].has_key?(doc_name),
+                     "Term #{term_name_no_tilde} was repeated for doc #{doc_name} in term2cluster hash table"
+
+            term2cluster[term_name_no_tilde][doc_name] = cluster
+          else
+            term2cluster[term_name_no_tilde] = { doc_name => cluster }
+          end
+
+          top_terms_f.puts [doc_name, doc_idx, term_name_no_tilde, term_idx, cluster, dist].join " "
+        end
       end
     end
   end
@@ -869,7 +926,7 @@ invisible(dev.off())
   mat = nil
   File.open(svd_VS_dis_fname, "rt").each_line.with_index do |line, idx|
     if idx.zero?
-      nrows = line.chomp.to_i
+      nrows, ncols = line.chomp.split(" ").map(&:to_i)
       mat = Array.new(nrows) { Array.new(nrows, 0) }
     else
       ridx, cidx, val = line.chomp.split " "
