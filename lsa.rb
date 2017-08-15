@@ -169,7 +169,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.7.0-alpha"
+  PIPELINE_VERSION = "0.7.0"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
