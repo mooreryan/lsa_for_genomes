@@ -3,6 +3,7 @@
 .lock-wscript
 .ruby-*
 bin/bisecting_kmeans*
+bin/process_svd
 bin/redsvd
 bin/td_matrix*
 bin/td_old*
@@ -16,6 +17,7 @@ src/*old*
 test_files/9genomes
 test_files/*seanie*
 test_files/.Rhistory
+test_files/psvd_out
 testdir
 vendor/*.o
 vendor/redsvd-0.2.0/.waf*

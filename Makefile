@@ -28,7 +28,7 @@ all: $(MAIN) redsvd
 
 clean:
 	-rm -r $(SVD_D)/bin $(SVD_D)/include $(SVD_D)/lib $(SVD_D)/redsvd_build $(BIN)/redsvd
-	-rm -r $(BIN)/td_matrix $(OBJS)
+	-rm -r $(BIN)/td_matrix $(BIN)/process_svd $(OBJS)
 
 grep_ids: $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
@@ -59,3 +59,10 @@ redsvd:
 	$(SVD_D)/waf
 	$(SVD_D)/waf install
 	mv $(SVD_D)/bin/redsvd ./bin
+
+process_svd:
+	g++ src/process_svd.cc -o bin/process_svd
+
+test_process_svd: process_svd
+	rm -r test_files/psvd_out; mkdir test_files/psvd_out
+	bin/process_svd test_files/svd.U test_files/svd.S test_files/svd.V 2 test_files/psvd_out
