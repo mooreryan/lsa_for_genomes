@@ -67,11 +67,13 @@ cosine_dissimilarity(Eigen::VectorXd v1, Eigen::VectorXd v2)
 void
 print_all_rows_cos_dis(FILE* fp, PSVD::Matrix &mat)
 {
-  int num_rows = mat.rows();
-  for (int r1 = 0; r1 < num_rows - 1; ++r1) {
-    for (int r2 = r1 + 1; r2 < num_rows; ++r2) {
+  long num_rows = mat.rows();
+  fprintf(fp, "%ld %ld\n", num_rows, num_rows);
+
+  for (long r1 = 0; r1 < num_rows - 1; ++r1) {
+    for (long r2 = r1 + 1; r2 < num_rows; ++r2) {
       fprintf(fp,
-              "%d %d %+lf\n",
+              "%ld %ld %+lf\n",
               r1,
               r2,
               cosine_dissimilarity(mat.row(r1), mat.row(r2)));
@@ -79,13 +81,32 @@ print_all_rows_cos_dis(FILE* fp, PSVD::Matrix &mat)
   }
 }
 
+/* Rows will be rows from M1 and columns will be the dissimilarity
+   scores of this row with each row in M2. So tni 2nd row, 3rd
+   column would be the dissimilarity between M1.row(1) and
+   M2.row(2). */
+void
+print_m1_vs_m2_cos_dis(FILE* fp, PSVD::Matrix &mat1, PSVD::Matrix &mat2)
+{
+  fprintf(fp, "%ld %ld\n", mat1.rows(), mat2.rows());
+  for (int i1 = 0; i1 < mat1.rows(); ++i1) {
+    fprintf(fp, "%+lf", cosine_dissimilarity(mat1.row(i1), mat2.row(0)));
+
+    for (int i2 = 1; i2 < mat2.rows(); ++i2) {
+      fprintf(fp, " %+lf", cosine_dissimilarity(mat1.row(i1), mat2.row(i2)));
+    }
+    fprintf(fp, "\n");
+  }
+}
+
+
 
 /* Needs to have the first line already read, else it will PANIC */
 void
 populate_matrix(FILE* fp, int nrows, int ncols, int num_topics, PSVD::Matrix &mat)
 {
-  int ridx = 0;
-  int cidx = 0;
+  long ridx = 0;
+  long cidx = 0;
   int ret_val = 0;
   double val = 0.0;
 
@@ -111,6 +132,8 @@ populate_matrix(FILE* fp, int nrows, int ncols, int num_topics, PSVD::Matrix &ma
 void
 print_matrix(FILE* fp, PSVD::Matrix &mat)
 {
+  fprintf(fp, "%ld %ld\n", mat.rows(), mat.cols());
+
   for (int i = 0; i < mat.rows(); ++i) {
     fprintf(fp, "%lf", mat(i, 0));
 
@@ -194,14 +217,17 @@ main(int argc, char *argv[])
   char* svd_us_fname = join(argv[5], "svd.US", '/');
   char* svd_vs_fname = join(argv[5], "svd.VS", '/');
   char* svd_vs_dis_fname = join(argv[5], "svd.VS.dis", '/');
+  char* svd_vs_to_us_dis_fname = join(argv[5], "svd.VS_to_US.dis", '/');
 
   PANIC_IF_FILE_CAN_BE_READ(stderr, svd_us_fname);
   PANIC_IF_FILE_CAN_BE_READ(stderr, svd_vs_fname);
   PANIC_IF_FILE_CAN_BE_READ(stderr, svd_vs_dis_fname);
+  PANIC_IF_FILE_CAN_BE_READ(stderr, svd_vs_to_us_dis_fname);
 
   FILE* svd_us_f = fopen(svd_us_fname, "w");
   FILE* svd_vs_f = fopen(svd_vs_fname, "w");
   FILE* svd_vs_dis_f = fopen(svd_vs_dis_fname, "w");
+  FILE* svd_vs_to_us_dis_f = fopen(svd_vs_to_us_dis_fname, "w");
 
   PANIC_IF(svd_us_f == NULL,
            FILE_ERR,
@@ -218,6 +244,11 @@ main(int argc, char *argv[])
            stderr,
            "Could not open %s for writing",
            svd_vs_dis_fname);
+  PANIC_IF(svd_vs_to_us_dis_f == NULL,
+           FILE_ERR,
+           stderr,
+           "Could not open %s for writing",
+           svd_vs_to_us_dis_fname);
 
   /* Get num rows and cols for svd_u */
   ret_val = fscanf(svd_u_f, "%d %d", &nrows_u, &ncols_u);
@@ -302,13 +333,17 @@ main(int argc, char *argv[])
   /* The VS file has the projected docs in our case */
   print_all_rows_cos_dis(svd_vs_dis_f, svd_vs);
 
+  print_m1_vs_m2_cos_dis(svd_vs_to_us_dis_f, svd_vs, svd_us);
+
   free(svd_us_fname);
   free(svd_vs_fname);
   free(svd_vs_dis_fname);
+  free(svd_vs_to_us_dis_fname);
 
   fclose(svd_us_f);
   fclose(svd_vs_f);
   fclose(svd_vs_dis_f);
+  fclose(svd_vs_to_us_dis_f);
 
   return 0;
 }
