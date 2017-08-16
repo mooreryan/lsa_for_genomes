@@ -41,7 +41,7 @@ atc_weight_singletons(int count, int docs_with_term, double weight)
 }
 
 double
-tf(double count, int num_words_in_doc)
+tf_raw(double count, int num_words_in_doc)
 {
   return count;
 }
@@ -276,8 +276,8 @@ int main(int argc, char *argv[])
   idf_func_t* idf_func = NULL;
 
   /* Set the tf function */
-  if (strncmp(opt_tf_func, "tf", MAX_STR_LEN) == 0) {
-    tf_func = tf;
+  if (strncmp(opt_tf_func, "tf_raw", MAX_STR_LEN) == 0) {
+    tf_func = tf_raw;
   } else if (strncmp(opt_tf_func, "tf_binary", MAX_STR_LEN) == 0) {
     tf_func = tf_binary;
   } else if (strncmp(opt_tf_func, "tf_freq", MAX_STR_LEN) == 0) {
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
             " Using tf\n",
             opt_tf_func);
 
-    tf_func = tf;
+    tf_func = tf_raw;
   }
 
   /* Set the idf function */

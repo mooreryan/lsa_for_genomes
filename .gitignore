@@ -12,6 +12,7 @@ lsa_cluster_tmp.*
 lsa_output
 old
 output
+sandbox
 scripts/preprint_r_scripts/hshs.r
 src/*old*
 test_files/9genomes

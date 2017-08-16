@@ -169,7 +169,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.7.0"
+  PIPELINE_VERSION = "0.8.0-alpha"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -266,6 +266,9 @@ end
 def run_td_matrix_counts td_matrix,
                          cluster_outfname,
                          outdir,
+                         tf_func,
+                         idf_func,
+                         singleton_weight,
                          log_out_fname,
                          log_err_fname,
                          td_matrix_outfiles
@@ -276,6 +279,9 @@ def run_td_matrix_counts td_matrix,
     cmd = "#{td_matrix} " +
           "#{cluster_outfname} " +
           "#{outdir} " +
+          "#{tf_func} " +
+          "#{idf_func} " +
+          "#{singleton_weight} " +
           "1>> #{log_out_fname} 2>> #{log_err_fname}"
     Process.run_and_time_it! "Building term-doc matrix", cmd
   end
@@ -365,7 +371,33 @@ opts = Trollop.options do
       "What percentage of top terms per topic do you want to look at?" +
       " (Use 0 for automatic)",
       default: 0)
+
+  opt(:tf_func,
+      "Term frequency function",
+      default: "tf_raw")
+  opt(:idf_func,
+      "Inverse document frequency function",
+      default: "idf_smooth")
+  opt(:singleton_weight,
+      "Weight true singletons by this value",
+      default: 1.0,
+      type: :double)
 end
+
+tf_func_opts = ["tf_raw",
+                "tf_binary",
+                "tf_freq",
+                "tf_log_norm"]
+idf_func_opts = ["idf",
+                 "idf_smooth",
+                 "idf_const"]
+
+abort_unless tf_func_opts.include?(opts[:tf_func]),
+             "--tf-func must be one of #{tf_func_opts}. Got '#{opts[:tf_func]}'"
+abort_unless idf_func_opts.include?(opts[:idf_func]),
+             "--tf-func must be one of #{idf_func_opts}. Got '#{opts[:idf_func]}'"
+abort_unless opts[:singleton_weight] >= 0,
+             "--singleton-weight must be >= 0. Got #{opts[:singleton_weight]}"
 
 abort_unless opts[:percent_of_terms_per_topic] >= 0 &&
              opts[:percent_of_terms_per_topic] <= 100,
@@ -607,6 +639,9 @@ end
   run_td_matrix_counts td_matrix,
                        cluster_outfname,
                        File.dirname(td_matrix_outfname),
+                       opts[:tf_func],
+                       opts[:idf_func],
+                       opts[:singleton_weight],
                        log_out_fname,
                        log_err_fname,
                        td_matrix_outfiles
@@ -614,7 +649,12 @@ end
   # If we are in the original metadata group, move the mapping files
   # into the trees dir
   if opts[:mapping] && metadata_group_label == "original"
-    FileUtils.mv color_map_dir, trees_dir
+    # TODO doesn't feel right
+    if Dir.exist? trees_dir
+      FileUtils.mv Dir.glob(File.join(color_map_dir, "*")), trees_dir
+    else
+      FileUtils.mv color_map_dir, trees_dir
+    end
   end
 
   # Parse the idx to name map files
