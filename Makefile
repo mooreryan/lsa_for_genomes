@@ -37,7 +37,7 @@ $(MAIN): $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
 
 test: $(MAIN)
-	rm test_files/td_matrix.*txt; $(BIN)/$(MAIN) test_files/test.clu.tsv test_files tf idf_smooth && rm test_files/td_matrix.*txt
+	rm test_files/td_matrix.*txt; $(BIN)/$(MAIN) test_files/test.clu.tsv test_files tf idf_smooth 1 && rm test_files/td_matrix.*txt
 
 test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa

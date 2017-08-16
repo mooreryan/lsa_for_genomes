@@ -21,6 +21,25 @@ typedef double idf_func_t(int total_docs, int docs_with_term);
    num_words_in_docs > num_terms_in_doc */
 typedef double tf_func_t(int raw_count, int num_words_in_doc);
 
+int
+true_singleton(int raw_count, int docs_with_term)
+{
+  return raw_count == 1 && docs_with_term == 1;
+}
+
+/* To drop singletons completely, pass 0 for the weight param. atc
+   stands for adjust term count */
+int
+atc_weight_singletons(int raw_count, int docs_with_term, int weight)
+{
+  assert(weight >= 0);
+  if (true_singleton(raw_count, docs_with_term)) {
+    return weight * raw_count;
+  } else {
+    return raw_count;
+  }
+}
+
 double
 tf(int raw_count, int num_words_in_doc)
 {
@@ -232,9 +251,9 @@ kv_print_map(void* arg, void* data)
 
 int main(int argc, char *argv[])
 {
-  if (argc != 5) {
+  if (argc != 6) {
     fprintf(stderr,
-            "USAGE: %s mmseq2_clusters.tsv outdir tf_func idf_func\n"
+            "USAGE: %s mmseq2_clusters.tsv outdir tf_func idf_func singleton_weight\n"
             "Note: outdir must already exist.\n",
             argv[0]);
 
@@ -243,6 +262,13 @@ int main(int argc, char *argv[])
 
   char* opt_tf_func  = argv[3];
   char* opt_idf_func = argv[4];
+  long opt_singleton_weight = strtol(argv[5], NULL, 10);
+
+  PANIC_UNLESS(opt_singleton_weight >= 0,
+               ARG_ERR,
+               stderr,
+               "singleton weight must be >= 0, got %ld",
+               opt_singleton_weight);
 
   tf_func_t* tf_func = NULL;
   idf_func_t* idf_func = NULL;
@@ -541,7 +567,12 @@ int main(int argc, char *argv[])
 
 
           num_words_in_doc = word_count->val;
-          weighted_count = weight_count(tmp_kv->val,
+          int adjusted_term_count =
+            atc_weight_singletons(tmp_kv->val,
+                                  docs_with_term,
+                                  opt_singleton_weight);
+
+          weighted_count = weight_count(adjusted_term_count,
                                         num_words_in_doc,
                                         total_docs,
                                         docs_with_term,
@@ -658,8 +689,13 @@ int main(int argc, char *argv[])
 
 
       num_words_in_doc = word_count->val;
+      int adjusted_term_count =
+        atc_weight_singletons(tmp_kv->val,
+                              docs_with_term,
+                              opt_singleton_weight);
 
-      weighted_count = weight_count(tmp_kv->val,
+
+      weighted_count = weight_count(adjusted_term_count,
                                     num_words_in_doc,
                                     total_docs,
                                     docs_with_term,
