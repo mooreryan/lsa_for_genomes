@@ -13,11 +13,100 @@
 #define MAX_STR_LEN 10000
 #define DOC_SEP "~"
 
+typedef double idf_func_t(int total_docs, int docs_with_term);
+
+/* num_words_in_doc not always the same as number of terms in doc. If
+   each term has a count of 1 in that doc then they will be the
+   same. But if some terms have a count > 1 in that doc then the
+   num_words_in_docs > num_terms_in_doc */
+typedef double tf_func_t(int raw_count, int num_words_in_doc);
+
 double
-idf_weight(int num_docs, int docs_with_term)
+tf(int raw_count, int num_words_in_doc)
+{
+  return raw_count;
+}
+
+double
+tf_binary(int raw_count, int num_words_in_doc)
+{
+  if (raw_count > 0) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+double
+tf_freq(int raw_count, int num_words_in_doc)
+{
+  assert(num_words_in_doc != 0);
+  return raw_count / (double)num_words_in_doc;
+}
+
+double
+tf_log_norm(int raw_count, int num_words_in_doc)
+{
+  if (raw_count == 0) {
+    return 0;
+  } else {
+    return 1 + log(raw_count);
+  }
+}
+
+
+/* TODO write domain assertions for all the idf functions */
+
+double
+idf(int total_docs, int docs_with_term)
 {
   assert(docs_with_term != 0);
-  return log(1 + (num_docs / (double)docs_with_term));
+  return log(total_docs / (double)docs_with_term);
+}
+
+double
+idf_smooth(int total_docs, int docs_with_term)
+{
+  assert(docs_with_term != 0);
+  return log(1 + (total_docs / (double)docs_with_term));
+}
+
+/* Docs that are in every term will blow this up. So subtract one */
+/* double */
+/* idf_prob(int total_docs, int docs_with_term) */
+/* { */
+/*   int val = 0; */
+
+/*   if (docs_with_term == total_docs) { */
+/*     val = total_docs + 1; */
+/*   } else { */
+/*     val = total_docs; */
+/*   } */
+
+/*   assert(val - docs_with_term > 0); */
+/*   assert(docs_with_term != 0); */
+/*   return log( (val - docs_with_term) / docs_with_term ); */
+/* } */
+
+/* Take the two params so that it can be used like the other idf
+   functions */
+double
+idf_const(int total_docs, int docs_with_term)
+{
+  return 1;
+}
+
+double
+weight_count(int raw_term_count,
+             int num_words_in_doc,
+             int total_docs,
+             int docs_with_term,
+             tf_func_t* tf_func,
+             idf_func_t* idf_func)
+
+{
+  return tf_func(raw_term_count, num_words_in_doc) *
+    idf_func(total_docs, docs_with_term);
 }
 
 /* Will exit on memory error. Returns an allocated string. */
@@ -56,10 +145,10 @@ tokenize(char* str, char* split_on)
   PANIC_MEM(tokens, stderr);
   tommy_array_init(tokens);
 
-  char* token = NULL;
+  char* token  = NULL;
   char* string = NULL;
   char* tofree = NULL;
-  char* tmp = NULL;
+  char* tmp    = NULL;
 
   tofree = string = strdup(str);
   PANIC_MEM(string, stderr);
@@ -142,14 +231,39 @@ kv_print_map(void* arg, void* data)
 
 int main(int argc, char *argv[])
 {
-  if (argc != 3) {
+  if (argc != 5) {
     fprintf(stderr,
-            "USAGE: %s mmseq2_clusters.tsv outdir\n"
-            "Note: outdir must already exist.",
+            "USAGE: %s mmseq2_clusters.tsv outdir tf_func idf_func\n"
+            "Note: outdir must already exist.\n",
             argv[0]);
 
     exit(1);
   }
+
+  char* opt_tf_func  = argv[3];
+  char* opt_idf_func = argv[4];
+
+  tf_func_t* tf_func = tf;
+  idf_func_t* idf_func = NULL;
+
+  /* Set the idf function */
+  if (strncmp(opt_idf_func, "idf", MAX_STR_LEN) == 0) {
+    idf_func = idf;
+  } else if (strncmp(opt_idf_func, "idf_smooth", MAX_STR_LEN) == 0) {
+    idf_func = idf_smooth;
+  /* } else if (strncmp(opt_idf_func, "idf_prob", MAX_STR_LEN) == 0) { */
+  /*   idf_func = idf_prob; */
+  } else if (strncmp(opt_idf_func, "idf_const", MAX_STR_LEN) == 0) {
+    idf_func = idf_const;
+  } else {
+    fprintf(stderr,
+            "WARN -- %s is not an option for idf_function."
+            " Using idf_smooth\n",
+            opt_idf_func);
+
+    idf_func = idf_smooth;
+  }
+
 
   FILE* cluster_tsv = fopen(argv[1], "r");
 
@@ -159,6 +273,8 @@ int main(int argc, char *argv[])
            "Could not open '%s': %s",
            argv[1],
            strerror(errno));
+
+  double weighted_count = 0.0;
 
   const char* idx_to_doc_map_suffix  = "td_matrix.idx_to_doc_map.txt";
   const char* idx_to_term_map_suffix = "td_matrix.idx_to_term_map.txt";
@@ -174,10 +290,10 @@ int main(int argc, char *argv[])
   PANIC_IF_FILE_CAN_BE_READ(stderr, idx_to_doc_map_fname);
   FILE* idx_to_doc_map_f = fopen(idx_to_doc_map_fname, "w");
   PANIC_IF(idx_to_doc_map_f == NULL,
-               FILE_ERR,
-               stderr,
-               "Could not open %s for writing",
-               idx_to_doc_map_fname);
+           FILE_ERR,
+           stderr,
+           "Could not open %s for writing",
+           idx_to_doc_map_fname);
 
   PANIC_IF_FILE_CAN_BE_READ(stderr, idx_to_term_map_fname);
   FILE* idx_to_term_map_f = fopen(idx_to_term_map_fname, "w");
@@ -227,7 +343,7 @@ int main(int argc, char *argv[])
 
   char* doc_name = NULL;
 
-  int num_docs = 0;
+  int total_docs = 0;
   int num_terms = 0;
 
   fprintf(stderr, "LOG -- Starting 1st pass\n");
@@ -296,8 +412,8 @@ int main(int argc, char *argv[])
            argv[1],
            strerror(errno));
 
-  num_docs = tommy_array_size(doc_names);
-  assert(doc_idx == num_docs);
+  total_docs = tommy_array_size(doc_names);
+  assert(doc_idx == total_docs);
 
   int docs_with_term = 0;
   int total_non_zero_entries = 0;
@@ -316,6 +432,7 @@ int main(int argc, char *argv[])
               line_idx / (double)total_lines * 100);
     }
 
+    /* First line, so init the last term to the current term */
     if (line_idx == 0) {
       last_term = strdup(term);
     }
@@ -330,7 +447,7 @@ int main(int argc, char *argv[])
 
       /* Get data for idf calc. Scan through each doc to see if this
        * term is present in that doc. */
-      for (int i = 0; i < num_docs; ++i) {
+      for (int i = 0; i < total_docs; ++i) {
         doc_name = tommy_array_get(doc_names, i);
 
         tmp_kv = NULL;
@@ -345,13 +462,16 @@ int main(int argc, char *argv[])
                      "Doc: %s not found in counting hash table",
                      doc);
 
+        /* Doc counts only contains counts for the current term, so if
+           it is greater than 0 for a doc, then that term is in the
+           doc */
         if (tmp_kv->val > 0) {
           ++docs_with_term;
         }
       }
 
       int first_non_zero_doc = 1;
-      for (int i = 0; i < num_docs; ++i) {
+      for (int i = 0; i < total_docs; ++i) {
         doc_name = tommy_array_get(doc_names, i);
 
         tmp_kv = NULL;
@@ -368,18 +488,24 @@ int main(int argc, char *argv[])
 
         /* TODO will at least one val always be above 0? */
         if (tmp_kv->val > 0) {
+          weighted_count = weight_count(tmp_kv->val,
+                                        1,
+                                        total_docs,
+                                        docs_with_term,
+                                        tf_func,
+                                        idf_func);
           /* this check is to get the spaces right in the output line */
           if (first_non_zero_doc) { /* first doc/col */
             fprintf(td_matrix_f,
                     "%d:%.5f",
                     i,
-                    tmp_kv->val * idf_weight(num_docs, docs_with_term));
+                    weighted_count);
             first_non_zero_doc = 0;
           } else {
             fprintf(td_matrix_f,
                     " %d:%.5f",
                     i,
-                    tmp_kv->val * idf_weight(num_docs, docs_with_term));
+                    weighted_count);
           }
         }
       }
@@ -428,7 +554,7 @@ int main(int argc, char *argv[])
 
   /* Catch the last term */
   /* Get data for idf calc */
-  for (int i = 0; i < num_docs; ++i) {
+  for (int i = 0; i < total_docs; ++i) {
     doc_name = tommy_array_get(doc_names, i);
 
     tmp_kv = NULL;
@@ -449,7 +575,7 @@ int main(int argc, char *argv[])
   }
 
   int first_non_zero_doc = 1;
-  for (int i = 0; i < num_docs; ++i) {
+  for (int i = 0; i < total_docs; ++i) {
     doc_name = tommy_array_get(doc_names, i);
 
     tmp_kv = NULL;
@@ -465,18 +591,25 @@ int main(int argc, char *argv[])
                  doc);
 
     if (tmp_kv->val > 0) {
+      weighted_count = weight_count(tmp_kv->val,
+                                    1,
+                                    total_docs,
+                                    docs_with_term,
+                                    tf_func,
+                                    idf_func);
+
       /* this check is to get the spaces right in the output line */
       if (first_non_zero_doc) {
         fprintf(td_matrix_f,
                 "%d:%.5f",
                 i,
-                tmp_kv->val * idf_weight(num_docs, docs_with_term));
+                weighted_count);
         first_non_zero_doc = 0;
       } else {
         fprintf(td_matrix_f,
                 " %d:%.5f",
                 i,
-                tmp_kv->val * idf_weight(num_docs, docs_with_term));
+                weighted_count);
       }
     }
   }
