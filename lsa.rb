@@ -332,9 +332,10 @@ opts = Trollop.options do
 
   Latent semantic analysis pipeline for genomes and metagenomes.
 
-  --num-topics is the LIMIT on topics. You may see fewer depending on
-    the data. If you pass --num-topics 0, automatically decide the
-    best number of topics to use for distance matrix.
+  --num-topics is the number of topics to use for the distance
+    calculations. Pass 0 for automatic mode. If --num-topics is
+    greater than the maximum possible topics, the maximum number of
+    topics is used instead.
 
   --percent-of-terms-per-topic has an automatic mode, pass 0
 
@@ -686,6 +687,7 @@ end
   # end
 
   # LSA
+  # Always calculate the max number of topics in the LSA step
   run_redsvd redsvd,
              td_matrix_outfname,
              redsvd_outf_base,
@@ -700,18 +702,20 @@ end
               drop(1). # The first line is the number of sing_vals
               map(&:to_f)
 
-  sing_val_inflection_point = inflection_point sing_vals
-
-  if !opts[:num_topics].zero? &&
-     opts[:num_topics] < sing_val_inflection_point
-    sing_val_inflection_point = opts[:num_topics]
+  if opts[:num_topics].zero? # automatic mode
+    topics_for_dist_calc = inflection_point sing_vals
+  elsif opts[:num_topics] > max_topics(num_terms, num_docs)
+    AbortIf.logger.warn { "--num-topics #{opts[:num_topics]} was > than max topics (#{max_topics(num_terms, num_docs)}). Using max topics" }
+    topics_for_dist_calc = max_topics(num_terms, num_docs)
+  else
+    topics_for_dist_calc = opts[:num_topics]
   end
 
   run_process_svd process_svd,
                   svd_U_fname,
                   svd_S_fname,
                   svd_V_fname,
-                  sing_val_inflection_point,
+                  topics_for_dist_calc,
                   redsvd_dir,
                   log_out_fname,
                   log_err_fname
