@@ -887,7 +887,7 @@ for (cidx in 1:ncol(dat)) {
         num_centroids = inflection_point(dist_counts.map(&:last))
         num_centroids = 2 if num_centroids == 1
         centroids = dist_counts.take(num_centroids).map(&:first)
-        AbortIf.logger.info { "#{doc_name} will have #{centroids.count}" }
+        AbortIf.logger.info { "#{doc_name} will have #{centroids.count} groups of sequences" }
 
         # START HERE need to make this R code good, and change the above file names
         rscript_str = %Q{
@@ -1024,24 +1024,24 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
   cmd = "Rscript #{make_trees_r_script_fname}"
   Process.run_and_time_it! "Generating trees", cmd
 
-  top_terms_per_topic_fnames = {}
-  topic2top_terms.each do |topic, terms|
-    dir = File.join top_terms_by_topic_dir, "seqs"
-    FileUtils.mkdir_p dir
-    fname = File.join dir,
-                      "top_terms.topic_#{topic.to_i}.fa"
+  # top_terms_per_topic_fnames = {}
+  # topic2top_terms.each do |topic, terms|
+  #   dir = File.join top_terms_by_topic_dir, "seqs"
+  #   FileUtils.mkdir_p dir
+  #   fname = File.join dir,
+  #                     "top_terms.topic_#{topic.to_i}.fa"
 
-    top_terms_per_topic_fnames[topic] = File.open fname, "w"
-  end
+  #   top_terms_per_topic_fnames[topic] = File.open fname, "w"
+  # end
 
-  term_doc_dist_cluster_fnames = {}
-  doc_names.each do |doc_name|
-    abort_if term_doc_dist_cluster_fnames.has_key?(doc_name),
-             "Doc #{doc_name} is repeated in term_doc_dist_cluster_fnames hash table"
+  # term_doc_dist_cluster_fnames = {}
+  # doc_names.each do |doc_name|
+  #   abort_if term_doc_dist_cluster_fnames.has_key?(doc_name),
+  #            "Doc #{doc_name} is repeated in term_doc_dist_cluster_fnames hash table"
 
-    # This will need to be filled out as you read the cluster file?
-    term_doc_dist_cluster_fnames[doc_name] = {}
-  end
+  #   # This will need to be filled out as you read the cluster file?
+  #   term_doc_dist_cluster_fnames[doc_name] = {}
+  # end
 
   #   AbortIf.logger.info { "Grepping seq ids" }
   #   # Grep them from the prepped file
