@@ -19,37 +19,37 @@ typedef double idf_func_t(int total_docs, int docs_with_term);
    each term has a count of 1 in that doc then they will be the
    same. But if some terms have a count > 1 in that doc then the
    num_words_in_docs > num_terms_in_doc */
-typedef double tf_func_t(int raw_count, int num_words_in_doc);
+typedef double tf_func_t(double count, int num_words_in_doc);
 
 int
-true_singleton(int raw_count, int docs_with_term)
+true_singleton(int count, int docs_with_term)
 {
-  return raw_count == 1 && docs_with_term == 1;
+  return count == 1 && docs_with_term == 1;
 }
 
 /* To drop singletons completely, pass 0 for the weight param. atc
    stands for adjust term count */
-int
-atc_weight_singletons(int raw_count, int docs_with_term, int weight)
+double
+atc_weight_singletons(int count, int docs_with_term, double weight)
 {
   assert(weight >= 0);
-  if (true_singleton(raw_count, docs_with_term)) {
-    return weight * raw_count;
+  if (true_singleton(count, docs_with_term)) {
+    return weight * count;
   } else {
-    return raw_count;
+    return count;
   }
 }
 
 double
-tf(int raw_count, int num_words_in_doc)
+tf(double count, int num_words_in_doc)
 {
-  return raw_count;
+  return count;
 }
 
 double
-tf_binary(int raw_count, int num_words_in_doc)
+tf_binary(double count, int num_words_in_doc)
 {
-  if (raw_count > 0) {
+  if (count > 0) {
     return 1;
   } else {
     return 0;
@@ -57,21 +57,21 @@ tf_binary(int raw_count, int num_words_in_doc)
 }
 
 double
-tf_freq(int raw_count, int num_words_in_doc)
+tf_freq(double count, int num_words_in_doc)
 {
   assert(num_words_in_doc != 0);
-  return raw_count / (double)num_words_in_doc;
+  return count / (double)num_words_in_doc;
 }
 
 /* This one should be good for downplaying the importance of crazy
    high count things like tRNAs */
 double
-tf_log_norm(int raw_count, int num_words_in_doc)
+tf_log_norm(double count, int num_words_in_doc)
 {
-  if (raw_count == 0) {
+  if (count == 0) {
     return 0;
   } else {
-    return 1 + log(raw_count);
+    return 1 + log(count);
   }
 }
 
@@ -117,7 +117,7 @@ idf_const(int total_docs, int docs_with_term)
 }
 
 double
-weight_count(int raw_term_count,
+weight_count(double term_count,
              int num_words_in_doc,
              int total_docs,
              int docs_with_term,
@@ -125,7 +125,7 @@ weight_count(int raw_term_count,
              idf_func_t* idf_func)
 
 {
-  return tf_func(raw_term_count, num_words_in_doc) *
+  return tf_func(term_count, num_words_in_doc) *
     idf_func(total_docs, docs_with_term);
 }
 
@@ -260,14 +260,16 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
+  double adjusted_term_count = 0.0;
+
   char* opt_tf_func  = argv[3];
   char* opt_idf_func = argv[4];
-  long opt_singleton_weight = strtol(argv[5], NULL, 10);
+  double opt_singleton_weight = strtod(argv[5], NULL);
 
   PANIC_UNLESS(opt_singleton_weight >= 0,
                ARG_ERR,
                stderr,
-               "singleton weight must be >= 0, got %ld",
+               "singleton weight must be >= 0, got %lf",
                opt_singleton_weight);
 
   tf_func_t* tf_func = NULL;
@@ -567,7 +569,7 @@ int main(int argc, char *argv[])
 
 
           num_words_in_doc = word_count->val;
-          int adjusted_term_count =
+          adjusted_term_count =
             atc_weight_singletons(tmp_kv->val,
                                   docs_with_term,
                                   opt_singleton_weight);
@@ -689,7 +691,7 @@ int main(int argc, char *argv[])
 
 
       num_words_in_doc = word_count->val;
-      int adjusted_term_count =
+      adjusted_term_count =
         atc_weight_singletons(tmp_kv->val,
                               docs_with_term,
                               opt_singleton_weight);
