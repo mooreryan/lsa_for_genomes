@@ -44,6 +44,8 @@ tf_freq(int raw_count, int num_words_in_doc)
   return raw_count / (double)num_words_in_doc;
 }
 
+/* This one should be good for downplaying the importance of crazy
+   high count things like tRNAs */
 double
 tf_log_norm(int raw_count, int num_words_in_doc)
 {
@@ -51,6 +53,16 @@ tf_log_norm(int raw_count, int num_words_in_doc)
     return 0;
   } else {
     return 1 + log(raw_count);
+  }
+}
+
+double
+tf_freq_log_norm(int raw_count, int num_words_in_doc)
+{
+  if (raw_count == 0) {
+    return 0;
+  } else {
+    return 1 + log(raw_count) / log(num_words_in_doc);
   }
 }
 
@@ -243,8 +255,28 @@ int main(int argc, char *argv[])
   char* opt_tf_func  = argv[3];
   char* opt_idf_func = argv[4];
 
-  tf_func_t* tf_func = tf;
+  tf_func_t* tf_func = NULL;
   idf_func_t* idf_func = NULL;
+
+  /* Set the tf function */
+  if (strncmp(opt_tf_func, "tf", MAX_STR_LEN) == 0) {
+    tf_func = tf;
+  } else if (strncmp(opt_tf_func, "tf_binary", MAX_STR_LEN) == 0) {
+    tf_func = tf_binary;
+  } else if (strncmp(opt_tf_func, "tf_freq", MAX_STR_LEN) == 0) {
+    tf_func = tf_freq;
+  } else if (strncmp(opt_tf_func, "tf_log_norm", MAX_STR_LEN) == 0) {
+    tf_func = tf_log_norm;
+  } else if (strncmp(opt_tf_func, "tf_freq_log_norm", MAX_STR_LEN) == 0) {
+    tf_func = tf_freq_log_norm;
+  } else {
+    fprintf(stderr,
+            "WARN -- %s is not an option for tf_func."
+            " Using tf\n",
+            opt_tf_func);
+
+    tf_func = tf;
+  }
 
   /* Set the idf function */
   if (strncmp(opt_idf_func, "idf", MAX_STR_LEN) == 0) {
@@ -257,7 +289,7 @@ int main(int argc, char *argv[])
     idf_func = idf_const;
   } else {
     fprintf(stderr,
-            "WARN -- %s is not an option for idf_function."
+            "WARN -- %s is not an option for idf_func."
             " Using idf_smooth\n",
             opt_idf_func);
 
