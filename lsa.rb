@@ -338,6 +338,17 @@ opts = Trollop.options do
 
   --percent-of-terms-per-topic has an automatic mode, pass 0
 
+  tf_func options: tf_raw, tf_binary, tf_freq, tf_log_norm
+
+  idf_func options: idf, idf_smooth, idf_const
+
+  true singleton weights
+    - pass 0 to completely drop true singletons
+    - any value between 0 and 1: decrease their contribution (try 0.5
+      to reduce their weight by half)
+    - pass 1 to let them be (this is default)
+    - any value greater than 1: increase their contribution
+
   Options:
   EOS
 
