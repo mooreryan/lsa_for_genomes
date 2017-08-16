@@ -56,17 +56,6 @@ tf_log_norm(int raw_count, int num_words_in_doc)
   }
 }
 
-double
-tf_freq_log_norm(int raw_count, int num_words_in_doc)
-{
-  if (raw_count == 0) {
-    return 0;
-  } else {
-    return 1 + log(raw_count) / log(num_words_in_doc);
-  }
-}
-
-
 /* TODO write domain assertions for all the idf functions */
 
 double
@@ -267,8 +256,6 @@ int main(int argc, char *argv[])
     tf_func = tf_freq;
   } else if (strncmp(opt_tf_func, "tf_log_norm", MAX_STR_LEN) == 0) {
     tf_func = tf_log_norm;
-  } else if (strncmp(opt_tf_func, "tf_freq_log_norm", MAX_STR_LEN) == 0) {
-    tf_func = tf_freq_log_norm;
   } else {
     fprintf(stderr,
             "WARN -- %s is not an option for tf_func."
@@ -370,6 +357,9 @@ int main(int argc, char *argv[])
   tommy_hashlin* doc_counts = NULL;
   HASHLIN_INIT(doc_counts);
 
+  tommy_hashlin* words_per_doc = NULL;
+  HASHLIN_INIT(words_per_doc);
+
   tommy_array* doc_names = NULL;
   ARRAY_INIT(doc_names);
 
@@ -430,6 +420,23 @@ int main(int argc, char *argv[])
                            tommy_strhash_u32(0, tmp_kv->key));
 
       tommy_array_insert(doc_names, strdup(doc));
+    }
+
+    /* Trak the total number of seqs/words per doc */
+    tmp_kv = NULL;
+    tmp_kv = tommy_hashlin_search(words_per_doc,
+                                  kv_compare,
+                                  doc,
+                                  tommy_strhash_u32(0, doc));
+
+    if (tmp_kv) {
+      ++tmp_kv->val;
+    } else {
+      tmp_kv = kv_init(doc, 1);
+      tommy_hashlin_insert(words_per_doc,
+                           &tmp_kv->node,
+                           tmp_kv,
+                           tommy_strhash_u32(0, tmp_kv->key));
     }
 
     ARRAY_DONE(tokens, free);
@@ -520,8 +527,22 @@ int main(int argc, char *argv[])
 
         /* TODO will at least one val always be above 0? */
         if (tmp_kv->val > 0) {
+          int num_words_in_doc = 0;
+          kv_t* word_count = NULL;
+          word_count = tommy_hashlin_search(words_per_doc,
+                                            kv_compare,
+                                            doc_name,
+                                            tommy_strhash_u32(0, doc_name));
+          PANIC_UNLESS(word_count,
+                       STD_ERR,
+                       stderr,
+                       "Missing doc '%s' from words_per_doc hash table",
+                       doc_name);
+
+
+          num_words_in_doc = word_count->val;
           weighted_count = weight_count(tmp_kv->val,
-                                        1,
+                                        num_words_in_doc,
                                         total_docs,
                                         docs_with_term,
                                         tf_func,
@@ -623,8 +644,23 @@ int main(int argc, char *argv[])
                  doc);
 
     if (tmp_kv->val > 0) {
+      int num_words_in_doc = 0;
+      kv_t* word_count = NULL;
+      word_count = tommy_hashlin_search(words_per_doc,
+                                        kv_compare,
+                                        doc_name,
+                                        tommy_strhash_u32(0, doc_name));
+      PANIC_UNLESS(word_count,
+                   STD_ERR,
+                   stderr,
+                   "Missing doc '%s' from words_per_doc hash table",
+                   doc_name);
+
+
+      num_words_in_doc = word_count->val;
+
       weighted_count = weight_count(tmp_kv->val,
-                                    1,
+                                    num_words_in_doc,
                                     total_docs,
                                     docs_with_term,
                                     tf_func,
@@ -664,6 +700,7 @@ int main(int argc, char *argv[])
   HASHLIN_DONE(doc_counts, kv_free);
   HASHLIN_DONE(doc2idx, kv_free);
   HASHLIN_DONE(term2idx, kv_free);
+  HASHLIN_DONE(words_per_doc, kv_free);
 
   ARRAY_DONE(doc_names, free);
 
