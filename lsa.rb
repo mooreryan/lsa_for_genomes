@@ -1,5 +1,19 @@
 #!/usr/bin/env ruby
 
+require "set"
+
+def num_proteins_and_clusters mmseqs_final_outfname
+  clusters = Set.new
+  num_genes = 0
+  File.open(mmseqs_final_outfname, "rt").each_line do |line|
+    num_genes += 1
+    term, seq = line.chomp.split "\t"
+    clusters << term
+  end
+
+  [clusters.count, num_genes]
+end
+
 def var_explained_rscript sing_vals, inflection_point, pdf_fname
   sing_vals_str = sing_vals.join(", ")
 
@@ -579,6 +593,12 @@ if opts[:mapping]
   Process.run_and_time_it! "Making color maps", cmd
 end
 
+Time.time_it "Counting genes and clusters", AbortIf.logger do
+  nclusters, ngenes = num_proteins_and_clusters mmseqs_final_outfname
+  AbortIf.logger.info { "Number of input genes (words): #{ngenes}" }
+  AbortIf.logger.info { "Number of gene clusters (terms): #{nclusters}" }
+end
+
 ##########
 ##########
 ##########
@@ -735,6 +755,8 @@ end
   else
     topics_for_dist_calc = opts[:num_topics]
   end
+
+  AbortIf.logger.info { "Adjusted inflection point for #{metadata_group_label} is #{inflection_point(sing_vals)}" }
 
   File.open(var_explained_rscript_fname, "w") do |f|
     f.puts var_explained_rscript(sing_vals,
