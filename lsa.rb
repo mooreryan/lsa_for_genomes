@@ -63,6 +63,10 @@ sum.of.var <- unlist(lapply(1:length(var.explained), function(idx) {
 
 pdf("#{pdf_fname}", width=8, height=5)
 plot.colored.by.inflection.point(var.explained, #{inflection_point}, xlab="Topic", ylab="% variance")
+legend("topright",
+       legend=c("Above IP", "Below IP"),
+       pch=16,
+       col=c(rgb(1,0,0,0.5), "black"))
 invisible(dev.off())
 }
 end
