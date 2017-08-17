@@ -1,5 +1,25 @@
 #!/usr/bin/env ruby
 
+def var_explained_rscript sing_vals, inflection_point, pdf_fname
+  sing_vals_str = sing_vals.join(", ")
+
+  %Q{
+
+#{PLOT_FUNCTION}
+
+sing.vals <- c(#{sing_vals_str})
+var.explained <- sing.vals ** 2 / sum(sing.vals ** 2) * 100
+
+sum.of.var <- unlist(lapply(1:length(var.explained), function(idx) {
+    sum(var.explained[1:idx])
+}))
+
+pdf("#{pdf_fname}", width=8, height=5)
+plot.colored.by.inflection.point(var.explained, #{inflection_point}, xlab="Topic", ylab="% variance")
+invisible(dev.off())
+}
+end
+
 def biplot_rscript svd_US_fname, svd_VS_fname, doc_names, pdf_fname
   # Puts quotes around each doc name and joins on commas
   doc_names_str = doc_names.map { |str| %Q{"#{str}"} }.join(", ")
@@ -638,6 +658,11 @@ end
   biplot_pdf_fname =
     File.join redsvd_dir, "biplots.pdf"
 
+  var_explained_rscript_fname =
+    File.join rscript_dir, "var_explained.r"
+  var_explained_pdf_fname =
+    File.join redsvd_dir, "var_explained.pdf"
+
   top_terms_by_topic =
     File.join top_terms_by_topic_dir, "top_terms_by_topic.txt"
   top_terms_by_topic_plot_basename =
@@ -710,6 +735,15 @@ end
   else
     topics_for_dist_calc = opts[:num_topics]
   end
+
+  File.open(var_explained_rscript_fname, "w") do |f|
+    f.puts var_explained_rscript(sing_vals,
+                                 inflection_point(sing_vals),
+                                 var_explained_pdf_fname)
+  end
+
+  Process.run_and_time_it! "Plotting singular values",
+                           "Rscript #{var_explained_rscript_fname}"
 
   run_process_svd process_svd,
                   svd_U_fname,
