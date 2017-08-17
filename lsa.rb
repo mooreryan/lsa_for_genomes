@@ -169,7 +169,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.8.1-alpha"
+  PIPELINE_VERSION = "0.9.0-alpha"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -863,6 +863,10 @@ for (cidx in 1:ncol(dat)) {
         clusters_fname =
           File.join doc_dir,
                     "term_doc_dists_clusters.txt"
+        cluster_centers_fname =
+          File.join doc_dir,
+                    "term_doc_dists_cluster_centers.txt"
+
         kmeans_r_fname =
           File.join rscript_dir,
                     "term_doc_dists_kmeans.doc_#{doc_idx}_#{doc_name}.r"
@@ -892,20 +896,33 @@ for (cidx in 1:ncol(dat)) {
         num_centroids = inflection_point(dist_counts.map(&:last))
         num_centroids = 2 if num_centroids == 1
         centroids = dist_counts.take(num_centroids).map(&:first)
-        AbortIf.logger.info { "#{doc_name} will have #{centroids.count} groups of sequences" }
 
-        # START HERE need to make this R code good, and change the above file names
         rscript_str = %Q{
 #{PLOT_FUNCTION}
 
-num.centroids <- #{num_centroids}
+## num.centroids <- #{num_centroids}
 dat <- read.table("#{dists_fname}", col.names=c("dist"))
 dat.sorted <- dat[with(dat, order(dist)),]
 dist.counts <- c(#{dist_counts.map { |dist, count| count }.join(", ")})
 
+## Merge centroids that are really close
+centroids <- c(#{centroids.join(", ")})
+tolerance <- 2.5 / 100
+hc <- hclust(dist(centroids))
+groups <- cutree(hc, h = tolerance)
+centroid.groups <- as.data.frame(cbind(centroids, groups))
+merged.centroids <- unlist(lapply(sort(unique(centroid.groups$groups)), function(group) {
+    centroid.set <- subset(centroid.groups, centroid.groups$groups == group)$centroids
+    mean(centroid.set)
+}))
+num.centroids <- length(merged.centroids)
+
 ## Get the clusters
-k <- kmeans(dat.sorted, c(#{centroids.join(", ")}))
+k <- kmeans(dat, merged.centroids)
 write.table(k$cluster, "#{clusters_fname}", row.names=F, col.names=F, quote=F)
+write.table(k$centers, "#{cluster_centers_fname}", row.names=F, col.names=F, quote=F)
+
+dat.with.centroid <- as.data.frame(cbind(dat, kcluster=k$cluster))
 
 ## Plot dist counts to show how number of centroids was determined
 ## TODO should make this more tolerant like call a mean dist equal if
@@ -917,14 +934,15 @@ invisible(dev.off())
 ## Plot how the data fits into the clusters
 pdf("#{dists_plot_fname}", width=8, height=5)
 par(mfrow=c(1,1), lwd=2, cex.axis=0.8, cex.lab=1.2)
-plot(dat.sorted, xlab="", ylab="", bty="n", axes=F, type="n")
+dat.with.centroid.sorted <- dat.with.centroid[order(dat.with.centroid$dist), ]
+plot(1:nrow(dat.with.centroid.sorted), dat.with.centroid.sorted$dist, xlab="", ylab="", bty="n", axes=F, type="n")
 grid(lwd=1)
 box()
 axis(1)
 axis(2, las=1)
 title(xlab="Rank", line=2.5)
 title(ylab="Count", line=2.75)
-points(dat.sorted, col=rainbow(num.centroids)[k$cluster], pch=16, cex=0.8)
+points(1:nrow(dat.with.centroid.sorted), dat.with.centroid.sorted$dist, col=rainbow(num.centroids)[dat.with.centroid.sorted$kcluster], pch=16, cex=0.8)
 invisible(dev.off())
 }
 
@@ -934,10 +952,33 @@ invisible(dev.off())
 
         Process.run_and_time_it! "Running kmeans", "Rscript #{kmeans_r_fname}"
 
-        clusters = File.open(clusters_fname, "rt").read.chomp.split("\n")
+        # This is 1-based to match the R clusters
+        cluster2center = File.open(cluster_centers_fname, "rt").
+                         read.
+                         chomp.
+                         split("\n").
+                         map.with_index { |center, idx| [idx + 1, center] }.
+                         to_h
+
+        centers = cluster2center.values
+
+        AbortIf.logger.info { "#{doc_name} will have #{centers.count} groups for top terms by doc" }
+
+        center2new_idx = centers.sort_by { |center| center.to_f }.
+                         map.
+                         with_index { |center, idx| [center, idx + 1] }.
+                         to_h
+
+        clusters = File.open(clusters_fname, "rt").
+                   read.
+                   chomp.
+                   split("\n").
+                   map { |cluster| center2new_idx[cluster2center[cluster.to_i]] }
 
         dists_w_cluster =
-          dists.map.with_index { |dist, idx| [clusters[idx], dist, idx] }
+          dists.map.with_index do |dist, term_idx|
+          [clusters[term_idx], dist, term_idx]
+        end
 
         dists_w_cluster.each do |cluster, dist, term_idx|
           abort_unless idx2term.has_key?(term_idx),
