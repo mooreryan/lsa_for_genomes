@@ -1,6 +1,39 @@
 #!/usr/bin/env ruby
 
+Signal.trap("PIPE", "EXIT")
+
+require "aai"
+require "abort_if"
+require "fileutils"
+require "lsa"
+require "matrix"
 require "set"
+require "trollop"
+
+include AbortIf
+Process.extend Aai::CoreExtensions::Process
+
+module Aai
+  extend Aai
+  extend Aai::Utils
+end
+
+module Lsa
+  PIPELINE_VERSION = "0.9.0-alpha"
+  COPYRIGHT = "2017 Ryan Moore"
+  CONTACT   = "moorer@udel.edu"
+  WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
+  LICENSE   = "MIT"
+
+  VERSION_BANNER = "  # Pipeline version: #{PIPELINE_VERSION}
+  # Lib version: #{VERSION}
+  # Copyright #{COPYRIGHT}
+  # Contact: #{CONTACT}
+  # Website: #{WEBSITE}
+  # License: #{LICENSE}"
+
+  extend Lsa
+end
 
 def num_proteins_and_clusters mmseqs_final_outfname
   clusters = Set.new
@@ -43,7 +76,9 @@ num.topics <- function(US, VS)
 {
     max.topics <- 5
 
-    min(nrow(US), nrow(VS), max.topics)
+    ## Can have fewer topics calculated for the distance than the max
+    ## possible topics.
+    min(nrow(US), nrow(VS), ncol(US), ncol(VS), max.topics)
 }
 
 biplot2 <- function(doc.scores,
@@ -181,43 +216,6 @@ plot.colored.by.inflection.point <- function(dat, cutoff, xlab="Rank", ylab="Wei
 }
 }
 
-Signal.trap("PIPE", "EXIT")
-
-require "tempfile"
-
-require "aai"
-require "abort_if"
-require "fileutils"
-require "matrix"
-require "set"
-require "trollop"
-
-require "lsa"
-
-include AbortIf
-Process.extend Aai::CoreExtensions::Process
-
-module Aai
-  extend Aai
-  extend Aai::Utils
-end
-
-module Lsa
-  PIPELINE_VERSION = "0.9.0-alpha"
-  COPYRIGHT = "2017 Ryan Moore"
-  CONTACT   = "moorer@udel.edu"
-  WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
-  LICENSE   = "MIT"
-
-  VERSION_BANNER = "  # Pipeline version: #{PIPELINE_VERSION}
-  # Lib version: #{VERSION}
-  # Copyright #{COPYRIGHT}
-  # Contact: #{CONTACT}
-  # Website: #{WEBSITE}
-  # License: #{LICENSE}"
-
-  extend Lsa
-end
 
 def abort_unless_command exe
   abort_unless_file_exists exe
@@ -336,7 +334,8 @@ end
 # Returns the (index + 1) of the inflection point. Doubles as number
 # of items until the inflection point.
 def inflection_point dat
-  if dat.length <= 3
+  if dat.length < 3
+    AbortIf.logger.warn { "Fewer than three points, using all for inflection point" }
     dat.length
   else
     num_points = dat.length
@@ -345,7 +344,7 @@ def inflection_point dat
 
     b = last_point - first_point
 
-    dists = (1..num_points-2).map do |idx|
+    dists = (0..num_points-1).map do |idx|
       this_point = Vector[idx, dat[idx]]
       a = this_point - first_point
       vector_rejection(a, b).norm
@@ -829,7 +828,7 @@ end
 
       if opts[:percent_of_terms_per_topic].zero?
         sorted_abs_weights = sorted_weights_with_index.map(&:last)
-        num_terms_to_keep = inflection_point(sorted_abs_weights) + 1
+        num_terms_to_keep = inflection_point(sorted_abs_weights)
       else
         num_terms_to_keep = (num_terms * (opts[:percent_of_terms_per_topic] / 100.0)).round
       end
