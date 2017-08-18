@@ -212,8 +212,8 @@ plot.colored.by.inflection.point <- function(dat, cutoff, xlab="Rank", ylab="Wei
            col=col1,
            pch=16,
            cex=0.8)
-    points(x=cutoff+1:length(dat),
-           y=dat[cutoff+1:length(dat)],
+    points(x=(cutoff+1):length(dat),
+           y=dat[(cutoff+1):length(dat)],
            col=col2,
            pch=16,
            cex=0.8)
@@ -984,11 +984,10 @@ write.table(k$centers, "#{cluster_centers_fname}", row.names=F, col.names=F, quo
 dat.with.centroid <- as.data.frame(cbind(dat, kcluster=k$cluster))
 
 ## Plot dist counts to show how number of centroids was determined
-## TODO should make this more tolerant like call a mean dist equal if
-## within a certain tolerance?
-pdf("#{centroids_plot_fname}", width=8, height=5)
-plot.colored.by.inflection.point(dist.counts, num.centroids, ylab="Distance")
-invisible(dev.off())
+## Note...this will often be less than the inflection point because of the merging above
+## pdf("#{centroids_plot_fname}", width=8, height=5)
+## plot.colored.by.inflection.point(dist.counts, num.centroids, ylab="Distance")
+## invisible(dev.off())
 
 ## Plot how the data fits into the clusters
 pdf("#{dists_plot_fname}", width=8, height=5)
