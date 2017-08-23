@@ -825,8 +825,8 @@ end
 
         term_name = idx2term[term_idx]
 
-        [term_name, weight, weight.abs]
-      end.sort_by do |term, weight, abs_weight|
+        [term_name, term_idx, weight, weight.abs]
+      end.sort_by do |term, term_idx, weight, abs_weight|
         abs_weight
       end.reverse
 
@@ -857,8 +857,8 @@ end
       # Keep the term names in the ht
       topic2top_terms[topic_idx] = Set.new terms_no_doc_annotation
 
-      top_terms.each do |term, weight, abs_weight|
-        f.puts [topic_idx, term, weight].join " "
+      top_terms.each do |term, term_idx, weight, abs_weight|
+        f.puts [topic_idx, term_idx, term.split("~").last, weight].join " "
       end
     end
   end
