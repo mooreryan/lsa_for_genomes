@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.9.0"
+  PIPELINE_VERSION = "0.10.0-alpha"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -470,6 +470,7 @@ redsvd = File.join opts[:binary_dir], "redsvd"
 mmseqs = opts[:mmseqs]
 make_color_maps = File.join opts[:binary_dir], "make_color_maps.rb"
 process_svd = File.join opts[:binary_dir], "process_svd"
+term_means_by_metadata_group = File.join opts[:binary_dir], "term_means_by_metadata_group.rb"
 
 abort_unless_command prep_seq_files
 abort_unless_command cluster
@@ -478,6 +479,7 @@ abort_unless_command redsvd
 abort_unless_command mmseqs
 abort_unless_command make_color_maps
 abort_unless_command process_svd
+abort_unless_command term_means_by_metadata_group
 
 ################
 # check commands
@@ -1198,6 +1200,13 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
       outf.close
     end
   end
+end
+AbortIf.logger.info { "The big loop is done!" }
+
+# Make the per topic top term heatmaps
+if opts[:mapping]
+  cmd = "#{term_means_by_metadata_group} #{opts[:outdir]} #{opts[:mapping]}"
+  Process.run_and_time_it! "Making top term topic heatmaps", cmd
 end
 
 ##################

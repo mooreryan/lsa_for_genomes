@@ -1,6 +1,106 @@
 #!/usr/bin/env ruby
 Signal.trap("PIPE", "EXIT")
 
+def run_rscript! fname
+  cmd = "Rscript #{fname}"
+  Process.run_and_time_it! "Running RScript", cmd
+end
+
+def rscript fname, pdf_outbase
+  %Q{
+library(gplots)
+
+pdf.fname.base <- "#{pdf_outbase}"
+
+dat <- read.table("#{fname}", header=T, sep="\t")
+
+topics <- sort(unique(dat$topic))
+
+make.heatmap <- function(topic.idx)
+{
+  topic <- subset(dat, dat$topic == topic.idx)
+
+  ## The weighted counts are in these columns
+  data.cols <- 6:ncol(dat)
+
+  counts <- topic[, data.cols]
+
+  log.counts <- log(1 + counts)
+
+  log.counts.mat <- t(as.matrix(log.counts))
+
+  pdf.fname <- paste(pdf.fname.base,
+                     paste("topic", topic.idx, sep="_"),
+                     "png",
+                     sep=".")
+
+  png(pdf.fname, width = 8, height = 5, units = "in", res = 300)
+  heatmap.2(log.counts.mat,
+            trace = "none",
+            col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
+            cexRow = 0.7,
+            cexCol = 0.7,
+            labCol = NA, # topic$term.idx,
+            adjRow = c(NA, 0.5),
+            adjCol = c(NA, 0.5),
+            key.title = "",
+            key.xlab = "Adjusted count")
+  invisible(dev.off())
+}
+
+lapply(topics, make.heatmap)
+
+}
+end
+
+def original_heatmaps_rscript fname, pdf_outbase
+  %Q{
+library(gplots)
+
+pdf.fname.base <- "#{pdf_outbase}"
+
+dat <- read.table("#{fname}", header=T, sep="\t")
+
+topics <- sort(unique(dat$topic))
+
+make.heatmap <- function(topic.idx)
+{
+  topic <- subset(dat, dat$topic == topic.idx)
+
+  ## The weighted counts are in these columns
+  data.cols <- 3:ncol(dat)
+
+  counts <- topic[, data.cols]
+
+  log.counts <- log(1 + counts)
+
+  log.counts.mat <- t(as.matrix(log.counts))
+
+  pdf.fname <- paste(pdf.fname.base,
+                     paste("topic", topic.idx, sep="_"),
+                     "png",
+                     sep=".")
+
+  png(pdf.fname, width = 8, height = 5, units = "in", res = 300)
+  heatmap.2(log.counts.mat,
+            trace = "none",
+            col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
+            cexRow = 0.7,
+            cexCol = 0.7,
+            labCol = NA, # topic$term.idx,
+            adjRow = c(NA, 0.5),
+            adjCol = c(NA, 0.5),
+            key.title = "",
+            key.xlab = "Adjusted count")
+  invisible(dev.off())
+}
+
+lapply(topics, make.heatmap)
+
+}
+end
+
+require "aai"
 require "abort_if"
 require "fileutils"
 require "lsa"
@@ -8,6 +108,12 @@ require "lsa"
 
 include AbortIf
 include Lsa
+
+Process.extend Aai::CoreExtensions::Process
+
+# Command line args
+lsa_outdir    = ARGV[0]
+mapping_fname = ARGV[1]
 
 def new_term_row total_terms
   Array.new total_terms, 0
@@ -19,10 +125,13 @@ end
 
 current = ""
 
-lsa_outdir = ARGV[0]
+
 original_metadata_dir = File.join lsa_outdir,
                                   "metadata_groups",
                                   "original"
+rscript_dir = File.join original_metadata_dir,
+                         "r"
+
 td_matrix_dir = File.join original_metadata_dir,
                           "td_matrix"
 top_terms_by_topic_dir = File.join original_metadata_dir,
@@ -45,10 +154,10 @@ end
 FileUtils.mkdir_p by_cluster_dir
 
 original_output_fname = File.join by_cluster_dir, "original.txt"
+original_output_for_r_fname = File.join by_cluster_dir, "original_for_r.txt"
 md_groups_output_fname = File.join by_cluster_dir, "md_groups.txt"
 
 
-mapping_fname = ARGV[1]
 
 # Make doc to idx map
 doc2idx = {}
@@ -116,6 +225,15 @@ term_count_info = {}
 
 term2info = {}
 
+doc_names =
+  idx2doc.sort_by { |idx, doc| idx }.map { |idx, doc| doc }
+
+File.open(original_output_for_r_fname, "w") do |f|
+  f.puts ["topic", "term.idx", doc_names].join "\t"
+end
+
+count_mat_transpose = count_mat.transpose
+
 File.open(original_output_fname, "w") do |f|
   f.puts ["topic",
           "term.idx",
@@ -136,8 +254,14 @@ File.open(original_output_fname, "w") do |f|
       term2info[term][:topic]  = topic
       term2info[term][:idx] = term_idx
 
+      term_row = count_mat_transpose[term_idx]
+      File.open(original_output_for_r_fname, "a") do |rf|
+        rf.puts [topic, term_idx, term_row].join "\t"
+      end
+
       total_docs.times do |doc_idx|
         count_in_doc = count_mat[doc_idx][term_idx]
+
 
         orig_doc = idx2doc[doc_idx]
 
@@ -173,7 +297,6 @@ File.open(original_output_fname, "w") do |f|
     end
   end
 end
-
 
 File.open(md_groups_output_fname, "w") do |f|
   f.puts ["term.idx",
@@ -232,3 +355,42 @@ File.open(md_groups_output_fname, "w") do |f|
 end
 
 md_group2outf.each { |group_name, outf| outf.close }
+
+heatmap_group_dir = File.join md_group_dir, "per_topic_heatmaps"
+FileUtils.mkdir_p heatmap_group_dir
+
+md_group2outf.each do |group_name, outf|
+  pdf_outbase = File.join heatmap_group_dir,
+                          File.basename(outf.path, ".txt")
+
+  rscript_str = rscript outf.path,
+                        pdf_outbase
+
+  rscript_fname = File.join rscript_dir,
+                            File.basename(outf.path, ".txt") +
+                            ".heatmap_script.r"
+
+  File.open(rscript_fname, "w") do |f|
+    f.puts rscript_str
+  end
+
+  run_rscript! rscript_fname
+end
+
+
+# original_heatmaps_rscript_fname =
+#   File.join rscript_dir,
+#             File.basename(original_output_for_r_fname, ".txt") +
+#             ".heatmap_script.r"
+
+# pdf_outbase = File.join heatmap_group_dir,
+#                         File.basename(original_output_for_r_fname, ".txt")
+
+# rscript_str = original_heatmaps_rscript original_output_for_r_fname,
+#                                         pdf_outbase
+
+# File.open(original_heatmaps_rscript_fname, "w") do |f|
+#   f.puts rscript_str
+# end
+
+# run_rscript! original_heatmaps_rscript_fname
