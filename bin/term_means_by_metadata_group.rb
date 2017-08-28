@@ -57,6 +57,10 @@ def original_heatmaps_rscript fname, pdf_outbase
   %Q{
 library(gplots)
 
+## TODO could read this from the tree, but the ordering is wonky
+proj.docs.dist <- as.dist(read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.VS.dis.for_r", header=T, sep=" "))
+proj.docs.dist.tree <- as.dendrogram(hclust(proj.docs.dist, method="average"))
+
 pdf.fname.base <- "#{pdf_outbase}"
 
 dat <- read.table("#{fname}", header=T, sep="\t")
@@ -83,6 +87,7 @@ make.heatmap <- function(topic.idx)
 
   png(pdf.fname, width = 8, height = 5, units = "in", res = 300)
   heatmap.2(log.counts.mat,
+            Rowv = proj.docs.dist.tree,
             trace = "none",
             col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
             cexRow = 0.7,
@@ -378,19 +383,19 @@ md_group2outf.each do |group_name, outf|
 end
 
 
-# original_heatmaps_rscript_fname =
-#   File.join rscript_dir,
-#             File.basename(original_output_for_r_fname, ".txt") +
-#             ".heatmap_script.r"
+original_heatmaps_rscript_fname =
+  File.join rscript_dir,
+            File.basename(original_output_for_r_fname, ".txt") +
+            ".heatmap_script.r"
 
-# pdf_outbase = File.join heatmap_group_dir,
-#                         File.basename(original_output_for_r_fname, ".txt")
+pdf_outbase = File.join heatmap_group_dir,
+                        File.basename(original_output_for_r_fname, ".txt")
 
-# rscript_str = original_heatmaps_rscript original_output_for_r_fname,
-#                                         pdf_outbase
+rscript_str = original_heatmaps_rscript original_output_for_r_fname,
+                                        pdf_outbase
 
-# File.open(original_heatmaps_rscript_fname, "w") do |f|
-#   f.puts rscript_str
-# end
+File.open(original_heatmaps_rscript_fname, "w") do |f|
+  f.puts rscript_str
+end
 
-# run_rscript! original_heatmaps_rscript_fname
+run_rscript! original_heatmaps_rscript_fname
