@@ -1,104 +1,81 @@
 #!/usr/bin/env ruby
 Signal.trap("PIPE", "EXIT")
 
+MAKE_HEATMAP_FUNC = %Q{
+make.heatmap <- function(topic.idx)
+{
+  topic <- subset(dat, dat$topic == topic.idx)
+
+  counts <- topic[, data.cols]
+
+  log.counts <- log(1 + counts)
+
+  log.counts.mat <- t(as.matrix(log.counts))
+
+  rownames(log.counts.mat) <- doc.names
+
+  ## Order the rows based on the tree. It will have the same names as
+  ## the doc.names array. But only if the dendro is valid.
+  if (is.null(dendro)) {
+    log.counts.mat.ordered <- log.counts.mat
+  } else {
+    log.counts.mat.ordered <- log.counts.mat[tre$tip.label, ]
+  }
+
+  png.fname <- paste(png.fname.base,
+                     paste("topic", topic.idx, sep="_"),
+                     "png",
+                     sep=".")
+
+  png(png.fname, width = 8, height = 5, units = "in", res = 300)
+  heatmap.2(log.counts.mat.ordered,
+            Rowv = ifelse(is.null(dendro), TRUE, dendro),
+            trace = "none",
+            col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
+            cexRow = 0.7,
+            cexCol = 0.7,
+            labCol = NA, # topic$term.idx,
+            adjRow = c(NA, 0.5),
+            adjCol = c(NA, 0.5),
+            key.title = "",
+            key.xlab = "Adjusted count")
+  invisible(dev.off())
+}
+}
+
 def run_rscript! fname
   cmd = "Rscript #{fname}"
   Process.run_and_time_it! "Running RScript", cmd
 end
 
-def rscript fname, pdf_outbase
+ORIGINAL_MD_GROUP_START_IDX = 3
+NEW_MD_GROUP_START_IDX  = 6
+
+# data_col_start_idx is one based (use 3 for the original data, and 6
+# for the metadata groups)
+def rscript count_mat, doc_tree, data_col_start_idx, png_outbase
   %Q{
 library(gplots)
+library(ape)
 
-pdf.fname.base <- "#{pdf_outbase}"
+#{MAKE_HEATMAP_FUNC}
 
-dat <- read.table("#{fname}", header=T, sep="\t")
+tre <- read.tree("#{doc_tree}")
+dendro <- tryCatch ({
+  return(as.dendrogram(as.hclust(tre)))
+}, error = function(err) {
+  print(paste("Error with doc dendrogram for (#{png_outbase}), not using it for the heatmap. If there were only two docs, this is not an issue. If there were more than two docs, the row trees on the heatmaps may look different than the doc trees in the metadata groups folders. R Error: ", err))
+  return(NULL)
+})
 
-topics <- sort(unique(dat$topic))
+png.fname.base <- "#{png_outbase}"
 
-make.heatmap <- function(topic.idx)
-{
-  topic <- subset(dat, dat$topic == topic.idx)
 
-  ## The weighted counts are in these columns
-  data.cols <- 6:ncol(dat)
-
-  counts <- topic[, data.cols]
-
-  log.counts <- log(1 + counts)
-
-  log.counts.mat <- t(as.matrix(log.counts))
-
-  pdf.fname <- paste(pdf.fname.base,
-                     paste("topic", topic.idx, sep="_"),
-                     "png",
-                     sep=".")
-
-  png(pdf.fname, width = 8, height = 5, units = "in", res = 300)
-  heatmap.2(log.counts.mat,
-            trace = "none",
-            col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
-            cexRow = 0.7,
-            cexCol = 0.7,
-            labCol = NA, # topic$term.idx,
-            adjRow = c(NA, 0.5),
-            adjCol = c(NA, 0.5),
-            key.title = "",
-            key.xlab = "Adjusted count")
-  invisible(dev.off())
-}
-
-lapply(topics, make.heatmap)
-
-}
-end
-
-def original_heatmaps_rscript fname, pdf_outbase
-  %Q{
-library(gplots)
-
-## TODO could read this from the tree, but the ordering is wonky
-proj.docs.dist <- as.dist(read.table("/Users/moorer/projects/lsa_for_genomes/output/metadata_groups/original/redsvd/svd.VS.dis.for_r", header=T, sep=" "))
-proj.docs.dist.tree <- as.dendrogram(hclust(proj.docs.dist, method="average"))
-
-pdf.fname.base <- "#{pdf_outbase}"
-
-dat <- read.table("#{fname}", header=T, sep="\t")
+dat <- read.table("#{count_mat}", header=T, sep="\t")
+data.cols <- #{data_col_start_idx}:ncol(dat)
+doc.names <- names(dat)[data.cols]
 
 topics <- sort(unique(dat$topic))
-
-make.heatmap <- function(topic.idx)
-{
-  topic <- subset(dat, dat$topic == topic.idx)
-
-  ## The weighted counts are in these columns
-  data.cols <- 3:ncol(dat)
-
-  counts <- topic[, data.cols]
-
-  log.counts <- log(1 + counts)
-
-  log.counts.mat <- t(as.matrix(log.counts))
-
-  pdf.fname <- paste(pdf.fname.base,
-                     paste("topic", topic.idx, sep="_"),
-                     "png",
-                     sep=".")
-
-  png(pdf.fname, width = 8, height = 5, units = "in", res = 300)
-  heatmap.2(log.counts.mat,
-            Rowv = proj.docs.dist.tree,
-            trace = "none",
-            col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
-            cexRow = 0.7,
-            cexCol = 0.7,
-            labCol = NA, # topic$term.idx,
-            adjRow = c(NA, 0.5),
-            adjCol = c(NA, 0.5),
-            key.title = "",
-            key.xlab = "Adjusted count")
-  invisible(dev.off())
-}
 
 lapply(topics, make.heatmap)
 
@@ -146,11 +123,18 @@ td_matrix_fname = File.join td_matrix_dir,
                             "td_matrix.txt"
 idx_to_doc_fname = File.join td_matrix_dir,
                              "td_matrix.idx_to_doc_map.txt"
-
 top_terms_by_topic_fname = File.join top_terms_by_topic_dir,
                                      "top_terms_by_topic.txt"
 
+abort_unless_file_exists td_matrix_fname
+abort_unless_file_exists idx_to_doc_fname
+abort_unless_file_exists top_terms_by_topic_fname
+
 by_cluster_dir = File.join top_terms_by_topic_dir, "by_cluster"
+
+original_trees_dir = File.join original_metadata_dir, "trees"
+original_doc_tree_fname = File.join original_trees_dir, "doc_dist_tree.newick.txt"
+abort_unless_file_exists original_doc_tree_fname
 
 if Dir.exist? by_cluster_dir
   AbortIf.logger.warn { "Outdir #{by_cluster_dir} already exists. It's contents will be overwritten." }
@@ -161,8 +145,6 @@ FileUtils.mkdir_p by_cluster_dir
 original_output_fname = File.join by_cluster_dir, "original.txt"
 original_output_for_r_fname = File.join by_cluster_dir, "original_for_r.txt"
 md_groups_output_fname = File.join by_cluster_dir, "md_groups.txt"
-
-
 
 # Make doc to idx map
 doc2idx = {}
@@ -268,11 +250,11 @@ File.open(original_output_fname, "w") do |f|
         count_in_doc = count_mat[doc_idx][term_idx]
 
 
-        orig_doc = idx2doc[doc_idx]
+        original_doc = idx2doc[doc_idx]
 
         doc_name = idx2doc[doc_idx]
 
-        group_info = doc2new_doc[orig_doc].map do |group_name, group|
+        group_info = doc2new_doc[original_doc].map do |group_name, group|
           unless term_count_info.has_key? term
             term_count_info[term] = {}
           end
@@ -365,11 +347,20 @@ heatmap_group_dir = File.join md_group_dir, "per_topic_heatmaps"
 FileUtils.mkdir_p heatmap_group_dir
 
 md_group2outf.each do |group_name, outf|
-  pdf_outbase = File.join heatmap_group_dir,
+  doc_tree_fname = File.join lsa_outdir, "metadata_groups",
+                             group_name,
+                             "trees",
+                             "doc_dist_tree.newick.txt"
+
+  abort_unless_file_exists doc_tree_fname
+
+  png_outbase = File.join heatmap_group_dir,
                           File.basename(outf.path, ".txt")
 
-  rscript_str = rscript outf.path,
-                        pdf_outbase
+  rscript_str = rscript File.absolute_path(outf.path),
+                        doc_tree_fname,
+                        NEW_MD_GROUP_START_IDX,
+                        png_outbase
 
   rscript_fname = File.join rscript_dir,
                             File.basename(outf.path, ".txt") +
@@ -388,11 +379,13 @@ original_heatmaps_rscript_fname =
             File.basename(original_output_for_r_fname, ".txt") +
             ".heatmap_script.r"
 
-pdf_outbase = File.join heatmap_group_dir,
+png_outbase = File.join heatmap_group_dir,
                         File.basename(original_output_for_r_fname, ".txt")
 
-rscript_str = original_heatmaps_rscript original_output_for_r_fname,
-                                        pdf_outbase
+rscript_str = rscript original_output_for_r_fname,
+                      original_doc_tree_fname,
+                      ORIGINAL_MD_GROUP_START_IDX,
+                      png_outbase
 
 File.open(original_heatmaps_rscript_fname, "w") do |f|
   f.puts rscript_str

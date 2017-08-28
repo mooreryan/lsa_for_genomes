@@ -24,7 +24,7 @@ THREADS = 3
 .PHONY: all
 .PHONY: clean
 
-all: $(MAIN) redsvd
+all: $(MAIN) redsvd process_svd
 
 clean:
 	-rm -r $(SVD_D)/bin $(SVD_D)/include $(SVD_D)/lib $(SVD_D)/redsvd_build $(BIN)/redsvd
