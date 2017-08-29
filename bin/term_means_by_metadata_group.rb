@@ -2,6 +2,11 @@
 Signal.trap("PIPE", "EXIT")
 
 MAKE_HEATMAP_FUNC = %Q{
+open.png <- function(png.fname, type)
+{
+  png(png.fname, type = type, width = 8, height = 5, units = "in", res = 300)
+}
+
 make.heatmap <- function(topic.idx)
 {
   topic <- subset(dat, dat$topic == topic.idx)
@@ -27,7 +32,22 @@ make.heatmap <- function(topic.idx)
                      "png",
                      sep=".")
 
-  png(png.fname, width = 8, height = 5, units = "in", res = 300)
+  ## Try to open the png with various types
+  tryCatch({
+    open.png(png.fname, "quartz")
+  }, error = function(err) {
+    tryCatch({
+      open.png(png.fname, "cairo-png")
+    }, error = function(err) {
+      tryCatch({
+        open.png(png.fname, "cairo")
+      }, error = function(err) {
+        ## If this one doesn't work, just let the program die
+        open.png(png.fname, "Xlib")
+      })
+    })
+  })
+
   heatmap.2(log.counts.mat.ordered,
             Rowv = ifelse(is.null(dendro), TRUE, dendro),
             trace = "none",
@@ -39,6 +59,7 @@ make.heatmap <- function(topic.idx)
             adjCol = c(NA, 0.5),
             key.title = "",
             key.xlab = "Adjusted count")
+
   invisible(dev.off())
 }
 }
@@ -61,11 +82,13 @@ library(ape)
 #{MAKE_HEATMAP_FUNC}
 
 tre <- read.tree("#{doc_tree}")
-dendro <- tryCatch ({
-  return(as.dendrogram(as.hclust(tre)))
+dendro <- NULL
+
+tryCatch ({
+  dendro <- as.dendrogram(as.hclust(tre))
 }, error = function(err) {
   print(paste("Error with doc dendrogram for (#{png_outbase}), not using it for the heatmap. If there were only two docs, this is not an issue. If there were more than two docs, the row trees on the heatmaps may look different than the doc trees in the metadata groups folders. R Error: ", err))
-  return(NULL)
+  dendro <- NULL
 })
 
 png.fname.base <- "#{png_outbase}"
