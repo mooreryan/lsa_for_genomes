@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-gem 'aai', '~> 0.5.3'
+gem 'aai', '~> 0.5.4'
 gem 'abort_if', '~> 0.2.0'
 gem 'lsa', '~> 0.1.0'
 gem 'parse_fasta', '~> 2.2'
