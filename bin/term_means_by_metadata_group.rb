@@ -7,7 +7,7 @@ open.png <- function(png.fname, type)
   png(png.fname, type = type, width = 8, height = 5, units = "in", res = 300)
 }
 
-make.heatmap <- function(topic.idx)
+make.heatmap <- function(topic.idx, rowv=NULL)
 {
   topic <- subset(dat, dat$topic == topic.idx)
 
@@ -48,8 +48,13 @@ make.heatmap <- function(topic.idx)
     })
   })
 
+  ## Just use defualt ordering for Rowv if the input dedro is NULL
+  if (is.null(rowv)) {
+      rowv <- TRUE
+  }
+
   heatmap.2(log.counts.mat.ordered,
-            Rowv = ifelse(is.null(dendro), TRUE, dendro),
+            Rowv = rowv,
             trace = "none",
             col=colorRampPalette(c("beige", "cadetblue", "darkblue")),
             cexRow = 0.7,
@@ -82,13 +87,12 @@ library(ape)
 #{MAKE_HEATMAP_FUNC}
 
 tre <- read.tree("#{doc_tree}")
-dendro <- NULL
 
-tryCatch ({
-  dendro <- as.dendrogram(as.hclust(tre))
+dendro <- tryCatch ({
+  as.dendrogram(as.hclust(tre))
 }, error = function(err) {
   print(paste("Error with doc dendrogram for (#{png_outbase}), not using it for the heatmap. If there were only two docs, this is not an issue. If there were more than two docs, the row trees on the heatmaps may look different than the doc trees in the metadata groups folders. R Error: ", err))
-  dendro <- NULL
+  NULL
 })
 
 png.fname.base <- "#{png_outbase}"
@@ -100,7 +104,7 @@ doc.names <- names(dat)[data.cols]
 
 topics <- sort(unique(dat$topic))
 
-lapply(topics, make.heatmap)
+lapply(topics, make.heatmap, rowv=dendro)
 
 }
 end
