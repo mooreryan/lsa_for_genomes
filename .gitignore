@@ -2,6 +2,8 @@
 .Rhistory
 .lock-wscript
 .ruby-*
+6genomes_output_6_topics
+6genomes_output
 bin/bisecting_kmeans*
 bin/process_svd
 bin/redsvd
@@ -15,6 +17,7 @@ output
 sandbox
 scripts/preprint_r_scripts/hshs.r
 src/*old*
+test_files/6genomes
 test_files/9genomes
 test_files/*seanie*
 test_files/.Rhistory
