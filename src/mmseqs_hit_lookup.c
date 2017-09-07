@@ -53,13 +53,14 @@ typedef struct id2info_t {
   tommy_node node;
 } id2info_t;
 
+/* does NOT copy the id and char, they should be pre-allocated */
 id2info_t*
 id2info_init(char* id, char* info)
 {
   id2info_t* id2info = malloc(sizeof *id2info);
   PANIC_MEM(id2info, stderr);
 
-  id2info->id = strdup(id);
+  id2info->id = id;
   id2info->info = info;
 
   return id2info;
@@ -69,6 +70,7 @@ void
 id2info_free(id2info_t* id2info)
 {
   free(id2info->id);
+  free(id2info->info);
   free(id2info);
 }
 
