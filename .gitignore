@@ -5,10 +5,12 @@
 6genomes_output_6_topics
 6genomes_output
 bin/bisecting_kmeans*
+bin/mmseqs_hit_lookup
 bin/process_svd
 bin/redsvd
 bin/td_matrix*
 bin/td_old*
+bin/*.dSYM
 Gemfile.lock
 lsa_cluster_tmp.*
 lsa_output

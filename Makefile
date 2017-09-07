@@ -17,14 +17,12 @@ OBJS := $(VENDOR)/tommyarray.o \
         $(VENDOR)/tommyhash.o \
         $(VENDOR)/tommylist.o
 
-MAIN = td_matrix
-
 THREADS = 3
 
 .PHONY: all
 .PHONY: clean
 
-all: $(MAIN) redsvd process_svd
+all: td_matrix redsvd process_svd
 
 clean:
 	-rm -r $(SVD_D)/bin $(SVD_D)/include $(SVD_D)/lib $(SVD_D)/redsvd_build $(BIN)/redsvd
@@ -33,22 +31,28 @@ clean:
 grep_ids: $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
 
-$(MAIN): $(OBJS)
+mmseqs_hit_lookup: $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
 
-test: $(MAIN)
-	rm test_files/td_matrix.*txt; $(BIN)/$(MAIN) test_files/test.clu.tsv test_files tf idf_smooth 1 && rm test_files/td_matrix.*txt
+test_mmseqs_hit_lookup: mmseqs_hit_lookup
+	$(BIN)/mmseqs_hit_lookup $(TEST_D)/1000_id_to_info.txt $(TEST_D)/test1000.m8
+
+td_matrix: $(OBJS)
+	$(CC) $(CFLAGS) -o $(BIN)/$@ $^ $(SRC)/$@.c $(LDFLAGS)
+
+test: td_matrix
+	rm test_files/td_matrix.*txt; $(BIN)/td_matrix test_files/test.clu.tsv test_files tf idf_smooth 1 && rm test_files/td_matrix.*txt
 
 test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa
 
-test_lsa: $(MAIN) redsvd process_svd
+test_lsa: td_matrix redsvd process_svd
 	rm -r output/; time ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -a test_files/mapping.txt
 
-test_lsa_no_mapping: $(MAIN)
+test_lsa_no_mapping: td_matrix
 	rm -r output/; time ./lsa.rb -i test_files/*.faa.gz
 
-test_lsa_short: $(MAIN) process_svd
+test_lsa_short: td_matrix process_svd
 	rm -r output/metadata_groups; time ./lsa.rb -i test_files/*.faa.gz -a test_files/mapping.txt
 
 test_lsa_small:
