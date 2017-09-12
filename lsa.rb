@@ -543,6 +543,10 @@ abort_if opts[:mapping] && !File.exist?(opts[:mapping]),
 # check files, prep dirs
 ######################################################################
 
+# Before running things, print out version and opts
+AbortIf.logger.debug { "Version: #{Lsa::VERSION_BANNER}" }
+AbortIf.logger.debug { "Options: #{opts}" }
+
 ######################################################################
 # run the pipeline
 ##################
