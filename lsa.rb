@@ -376,6 +376,10 @@ opts = Trollop.options do
 
   --percent-of-terms-per-topic has an automatic mode, pass 0
 
+  --grep-seqs should only be used if you have less than 20 or so
+    documents. If you are getting a 'Too many open files' error, do
+    NOT set this flag.
+
   tf_func options: tf_raw, tf_binary, tf_freq, tf_log_norm
 
   idf_func options: idf, idf_smooth, idf_const
@@ -431,6 +435,10 @@ opts = Trollop.options do
       "Weight true singletons by this value",
       default: 1.0,
       type: :double)
+
+  opt(:grep_seqs,
+      "Put interesting peptides into their own fasta files",
+      default: false)
 end
 
 tf_func_opts = ["tf_raw",
@@ -1134,74 +1142,77 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
   cmd = "Rscript #{make_trees_r_script_fname}"
   Process.run_and_time_it! "Generating trees", cmd
 
-  top_terms_per_topic_fnames = {}
-  topic2top_terms.each do |topic, terms|
-    dir = File.join top_terms_by_topic_dir, "seqs"
-    FileUtils.mkdir_p dir
-    fname = File.join dir,
-                      "top_terms.topic_#{topic.to_i}.fa"
 
-    top_terms_per_topic_fnames[topic] = File.open fname, "w"
-  end
+  if opts[:grep_seqs]
+    top_terms_per_topic_fnames = {}
+    topic2top_terms.each do |topic, terms|
+      dir = File.join top_terms_by_topic_dir, "seqs"
+      FileUtils.mkdir_p dir
+      fname = File.join dir,
+                        "top_terms.topic_#{topic.to_i}.fa"
 
-  term_doc_dist_cluster_fnames = {}
-  doc_names.each do |doc_name|
-    abort_if term_doc_dist_cluster_fnames.has_key?(doc_name),
-             "Doc #{doc_name} is repeated in term_doc_dist_cluster_fnames hash table"
+      top_terms_per_topic_fnames[topic] = File.open fname, "w"
+    end
 
-    # This will need to be filled out as you read the cluster file?
-    term_doc_dist_cluster_fnames[doc_name] = {}
-  end
+    term_doc_dist_cluster_fnames = {}
+    doc_names.each do |doc_name|
+      abort_if term_doc_dist_cluster_fnames.has_key?(doc_name),
+               "Doc #{doc_name} is repeated in term_doc_dist_cluster_fnames hash table"
 
-  AbortIf.logger.info { "Grepping seq ids" }
-  # Grep them from the prepped file
-  ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
+      # This will need to be filled out as you read the cluster file?
+      term_doc_dist_cluster_fnames[doc_name] = {}
+    end
+
+    AbortIf.logger.info { "Grepping seq ids" }
+    # Grep them from the prepped file
+    ParseFasta::SeqFile.open(prepped_seq_files).each_record do |rec|
 
 
-    # If the sequence is in this file but not in term2cluster hash
-    # table, then that sequence was NOT a cluster rep seq from MMseqs2
-    # clustering
+      # If the sequence is in this file but not in term2cluster hash
+      # table, then that sequence was NOT a cluster rep seq from MMseqs2
+      # clustering
 
-    header_no_tilde = rec.header.split("~").last
-    rec.header = header_no_tilde
+      header_no_tilde = rec.header.split("~").last
+      rec.header = header_no_tilde
 
-    if term2cluster.has_key? header_no_tilde
-      term2cluster[header_no_tilde].each do |doc_name, cluster|
-        abort_unless term_doc_dist_cluster_fnames.has_key?(doc_name),
-                     "Doc #{doc_name} present in term2cluster[header_no_tilde] but missing from term_doc_dist_cluster_fnames hash table"
+      if term2cluster.has_key? header_no_tilde
+        term2cluster[header_no_tilde].each do |doc_name, cluster|
+          abort_unless term_doc_dist_cluster_fnames.has_key?(doc_name),
+                       "Doc #{doc_name} present in term2cluster[header_no_tilde] but missing from term_doc_dist_cluster_fnames hash table"
 
-        # Make the cluster file for this doc
-        unless term_doc_dist_cluster_fnames[doc_name].has_key?(cluster)
-          doc_dir = File.join top_terms_by_doc_dir, doc_name
-          abort_unless File.exist?(doc_dir),
-                       "#{doc_dir} does not exist, but it should have already been created"
-          seqs_dir = File.join doc_dir, "seqs"
-          FileUtils.mkdir_p seqs_dir
+          # Make the cluster file for this doc
+          unless term_doc_dist_cluster_fnames[doc_name].has_key?(cluster)
+            doc_dir = File.join top_terms_by_doc_dir, doc_name
+            abort_unless File.exist?(doc_dir),
+                         "#{doc_dir} does not exist, but it should have already been created"
+            seqs_dir = File.join doc_dir, "seqs"
+            FileUtils.mkdir_p seqs_dir
 
-          fname = File.join seqs_dir, "#{doc_name}_term_doc_dist_cluster_#{cluster}.fa"
-          term_doc_dist_cluster_fnames[doc_name][cluster] = File.open fname, "w"
+            fname = File.join seqs_dir, "#{doc_name}_term_doc_dist_cluster_#{cluster}.fa"
+            term_doc_dist_cluster_fnames[doc_name][cluster] = File.open fname, "w"
+          end
+
+          term_doc_dist_cluster_fnames[doc_name][cluster].puts rec
         end
+      end
 
-        term_doc_dist_cluster_fnames[doc_name][cluster].puts rec
+      topic2top_terms.each do |topic, headers|
+        if headers.include? header_no_tilde
+          # seqs can be top seq in multiple topics
+          top_terms_per_topic_fnames[topic].puts rec
+        end
       end
     end
 
-    topic2top_terms.each do |topic, headers|
-      if headers.include? header_no_tilde
-        # seqs can be top seq in multiple topics
-        top_terms_per_topic_fnames[topic].puts rec
-      end
+    # Close the files
+    top_terms_per_topic_fnames.each do |topic, f|
+      f.close
     end
-  end
 
-  # Close the files
-  top_terms_per_topic_fnames.each do |topic, f|
-    f.close
-  end
-
-  term_doc_dist_cluster_fnames.each do |doc, outfiles|
-    outfiles.each do |cluster, outf|
-      outf.close
+    term_doc_dist_cluster_fnames.each do |doc, outfiles|
+      outfiles.each do |cluster, outf|
+        outf.close
+      end
     end
   end
 end
