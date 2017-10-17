@@ -1,0 +1,4 @@
+file name
+e_coli.faa.gz
+m_mazei.faa.gz
+s_flexneri.faa.gz

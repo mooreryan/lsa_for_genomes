@@ -116,8 +116,11 @@ biplot2 <- function(doc.scores,
     box()
     axis(1)
     axis(2, las=1)
-    title(xlab = paste("Topic", topic.x, sep=" "),
-          ylab = paste("Topic", topic.y, sep=" "),
+
+    # Topic labels get the -1 to match the zero indexing for topics
+    # used in the rest of the program.
+    title(xlab = paste("Topic", topic.x-1, sep=" "),
+          ylab = paste("Topic", topic.y-1, sep=" "),
           line=2.5)
 
     if (num.terms.to.keep == 0) {
