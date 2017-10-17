@@ -609,7 +609,6 @@ end
 label2outf = nil
 doc2new_doc = nil
 new_cluster_outfnames = []
-color_map_tmp_dir = nil
 if opts[:mapping]
   # Read the mapping file
   AbortIf.logger.info { "Parsing mapping file" }
@@ -742,9 +741,10 @@ end
   # If we are in the original metadata group, move the mapping files
   # into the trees dir
   if opts[:mapping] && metadata_group_label == "original"
-    # TODO doesn't feel right
+    # TODO will the trees_dir ever not exist?
     if Dir.exist? trees_dir
       FileUtils.mv Dir.glob(File.join(color_map_dir, "*")), trees_dir
+      FileUtils.rmdir color_map_dir
     else
       FileUtils.mv color_map_dir, trees_dir
     end
