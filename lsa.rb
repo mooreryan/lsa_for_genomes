@@ -369,6 +369,12 @@ opts = Trollop.options do
 
   Latent semantic analysis pipeline for genomes and metagenomes.
 
+  --infiles and --infile-glob cannot be specified at the same
+    time. Use one or the other. When you have a TON of input files,
+    but you can make a nice glob of them, use something like this
+    --infile-glob 'infiles/*.faa' (note the single quotes!) and things
+    will be just fine.
+
   --num-topics is the number of topics to use for the distance
     calculations. Pass 0 for automatic mode. If --num-topics is
     greater than the maximum possible topics, the maximum number of
@@ -404,6 +410,9 @@ opts = Trollop.options do
   opt(:infiles,
       "Files with ORFs",
       type: :strings)
+  opt(:infile_glob,
+      "File glob",
+      type: :string)
   opt(:outdir,
       "Output directory",
       type: :string,
@@ -536,7 +545,12 @@ log_err_fname = File.join log_dir, "lsa_err.txt"
 # check files, prep dirs
 ########################
 
-abort_if opts[:infiles].nil? || opts[:infiles].empty?,
+abort_if opts[:infile_glob] && opts[:infiles],
+         "Cannot specify both --infiles and --infile-glob. " +
+         "Try #{__FILE__} --help for help."
+
+abort_if (opts[:infiles].nil?     || opts[:infiles].empty?    ) &&
+         (opts[:infile_glob].nil? || opts[:infile_glob].empty?),
          "No infiles given. Try #{__FILE__} --help for help."
 
 # abort_if_file_exists opts[:outdir] unless opts[:force]
@@ -565,7 +579,12 @@ AbortIf.logger.debug { "Options: #{opts}" }
 if File.exists? prepped_seq_files
   AbortIf.logger.info { "Seqs already prepped, skipping" }
 else
-  infiles = opts[:infiles].join " "
+  if opts[:infiles]
+    infiles = opts[:infiles].join " "
+  else
+    infiles = opts[:infile_glob]
+  end
+
   cmd = "#{prep_seq_files} #{infiles} 1> #{prepped_seq_files} 2> #{log_err_fname}"
   Process.run_and_time_it! "Prepping ORFs", cmd
   abort_unless_file_exists prepped_seq_files
