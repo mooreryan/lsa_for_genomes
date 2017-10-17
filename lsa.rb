@@ -220,6 +220,7 @@ plot.colored.by.inflection.point <- function(dat, cutoff, xlab="Rank", ylab="Wei
 }
 }
 
+DOC_LIMIT_FOR_GREPPING = 20
 
 def abort_unless_command exe
   abort_unless_file_exists exe
@@ -382,9 +383,8 @@ opts = Trollop.options do
 
   --percent-of-terms-per-topic has an automatic mode, pass 0
 
-  --grep-seqs should only be used if you have less than 20 or so
-    documents. If you are getting a 'Too many open files' error, do
-    NOT set this flag.
+  --grep-seqs Even if this flag is set, if there are more than 20
+    documents grepping will be turned OFF.
 
   tf_func options: tf_raw, tf_binary, tf_freq, tf_log_norm
 
@@ -1162,7 +1162,7 @@ write.tree(proj.docs.dist.tree, file="#{newick_docs_fname}")
   Process.run_and_time_it! "Generating trees", cmd
 
 
-  if opts[:grep_seqs]
+  if opts[:grep_seqs] && num_docs <= DOC_LIMIT_FOR_GREPPING
     top_terms_per_topic_fnames = {}
     topic2top_terms.each do |topic, terms|
       dir = File.join top_terms_by_topic_dir, "seqs"
