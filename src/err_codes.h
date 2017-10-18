@@ -15,13 +15,14 @@
 
 #define SUCCESS    0
 
-#define ARG_ERR    2
-#define FILE_ERR   3
-#define KSEQ_ERR   5
-#define MEM_ERR    6
-#define STD_ERR    1
-#define THREAD_ERR 4
-#define OPT_ERR    7
+#define ARG_ERR            2
+#define DIVIDE_BY_ZERO_ERR 8
+#define FILE_ERR           3
+#define KSEQ_ERR           5
+#define MEM_ERR            6
+#define STD_ERR            1
+#define THREAD_ERR         4
+#define OPT_ERR            7
 
 #define FILE_ERR_MSG "could not open '%s' for %s"
 #define KSEQ_ERR_MSG "could not init kseq on '%s'"

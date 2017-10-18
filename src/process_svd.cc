@@ -10,6 +10,7 @@
 
 /* A guard for snprintf and such */
 #define MAX_STR_LEN 10000
+#define ZERO_TOLERANCE 1e-5
 
 /* Will exit on memory error. Returns an allocated string. */
 char*
@@ -51,9 +52,26 @@ mag(Eigen::VectorXd v)
   return sqrt(v.array().square().sum());
 }
 
+int
+is_zero(double val)
+{
+  return val < ZERO_TOLERANCE;
+}
+
 double
 cosine_similarity(Eigen::VectorXd v1, Eigen::VectorXd v2)
 {
+
+  double denom = mag(v1) * mag(v2);
+
+  if (is_zero(denom)) {
+    fprintf(stderr,
+            "ERROR: In process_svd.cc, one of the vectors "
+            "had zero length. This may be caused by giving "
+            "singletons too low of a weight.\n");
+    exit(DIVIDE_BY_ZERO_ERR);
+  }
+
   return v1.dot(v2) / (mag(v1) * mag(v2));
 }
 
@@ -178,35 +196,41 @@ main(int argc, char *argv[])
   PSVD::Matrix svd_vs;
   PSVD::Matrix svd_us;
 
-  /* Check command line file args */
-  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, argv[1]);
-  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, argv[2]);
-  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, argv[3]);
+  char* opt_svd_u_fname = argv[1];
+  char* opt_svd_s_fname = argv[2];
+  char* opt_svd_v_fname = argv[3];
+  char* opt_num_topics  = argv[4];
+  char* opt_outdir      = argv[5];
 
-  FILE* svd_u_f = fopen(argv[1], "r");
-  FILE* svd_s_f = fopen(argv[2], "r");
-  FILE* svd_v_f = fopen(argv[3], "r");
+  /* Check command line file args */
+  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, opt_svd_u_fname);
+  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, opt_svd_s_fname);
+  PANIC_UNLESS_FILE_CAN_BE_READ(stderr, opt_svd_v_fname);
+
+  FILE* svd_u_f = fopen(opt_svd_u_fname, "r");
+  FILE* svd_s_f = fopen(opt_svd_s_fname, "r");
+  FILE* svd_v_f = fopen(opt_svd_v_fname, "r");
 
   PANIC_IF(svd_u_f == NULL,
            errno,
            stderr,
            "Could not open %s for reading. (error: %s)",
-           argv[1],
+           opt_svd_u_fname,
            strerror(errno));
   PANIC_IF(svd_s_f == NULL,
            errno,
            stderr,
            "Could not open %s for reading. (error: %s)",
-           argv[2],
+           opt_svd_s_fname,
            strerror(errno));
   PANIC_IF(svd_v_f == NULL,
            errno,
            stderr,
            "Could not open %s for reading. (error: %s)",
-           argv[3],
+           opt_svd_v_fname,
            strerror(errno));
 
-  num_topics = strtol(argv[4], NULL, 10);
+  num_topics = strtol(opt_num_topics, NULL, 10);
   PANIC_IF(num_topics < 1,
            STD_ERR,
            stderr,
@@ -214,10 +238,10 @@ main(int argc, char *argv[])
            num_topics);
 
   /* Make outfiles */
-  char* svd_us_fname = join(argv[5], "svd.US", '/');
-  char* svd_vs_fname = join(argv[5], "svd.VS", '/');
-  char* svd_vs_dis_fname = join(argv[5], "svd.VS.dis", '/');
-  char* svd_vs_to_us_dis_fname = join(argv[5], "svd.VS_to_US.dis", '/');
+  char* svd_us_fname = join(opt_outdir, "svd.US", '/');
+  char* svd_vs_fname = join(opt_outdir, "svd.VS", '/');
+  char* svd_vs_dis_fname = join(opt_outdir, "svd.VS.dis", '/');
+  char* svd_vs_to_us_dis_fname = join(opt_outdir, "svd.VS_to_US.dis", '/');
 
   PANIC_IF_FILE_CAN_BE_READ(stderr, svd_us_fname);
   PANIC_IF_FILE_CAN_BE_READ(stderr, svd_vs_fname);

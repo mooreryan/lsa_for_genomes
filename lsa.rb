@@ -13,6 +13,8 @@ require "trollop"
 include AbortIf
 Process.extend Aai::CoreExtensions::Process
 
+MAX_BIPLOT_TOPICS = 20
+
 module Aai
   extend Aai
   extend Aai::Utils
@@ -78,7 +80,7 @@ def biplot_rscript svd_US_fname, svd_VS_fname, doc_names, pdf_fname
   %Q{
 num.topics <- function(US, VS)
 {
-    max.topics <- 5
+    max.topics <- #{MAX_BIPLOT_TOPICS}
 
     ## Can have fewer topics calculated for the distance than the max
     ## possible topics.
@@ -394,9 +396,10 @@ opts = Trollop.options do
   idf_func options: idf, idf_smooth, idf_const
 
   true singleton weights
-    - pass 0 to completely drop true singletons
-    - any value between 0 and 1: decrease their contribution (try 0.5
-      to reduce their weight by half)
+    - for now, the minimum singleton weight is 0.01 to avoid dropping
+      terms all together
+    - any value between 0.01 and 1: decrease their contribution (try
+      0.5 to reduce their weight by half)
     - pass 1 to let them be (this is default)
     - any value greater than 1: increase their contribution
 
@@ -465,8 +468,8 @@ abort_unless tf_func_opts.include?(opts[:tf_func]),
              "--tf-func must be one of #{tf_func_opts}. Got '#{opts[:tf_func]}'"
 abort_unless idf_func_opts.include?(opts[:idf_func]),
              "--tf-func must be one of #{idf_func_opts}. Got '#{opts[:idf_func]}'"
-abort_unless opts[:singleton_weight] >= 0,
-             "--singleton-weight must be >= 0. Got #{opts[:singleton_weight]}"
+abort_unless opts[:singleton_weight] >= 0.01,
+             "--singleton-weight must be >= 0.01. Got #{opts[:singleton_weight]}"
 
 abort_unless opts[:percent_of_terms_per_topic] >= 0 &&
              opts[:percent_of_terms_per_topic] <= 100,
