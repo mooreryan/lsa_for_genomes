@@ -47,7 +47,7 @@ test_pre:
 	rm $(SMALL_D)/*.seanie_lsa.*; ruby prep_seq_files.rb $(THREADS) $(SMALL_D)/*.fa && ruby cluster.rb $(THREADS) $(SMALL_D)/all_clean_annotated.seanie_lsa.fa
 
 test_lsa: td_matrix redsvd process_svd
-	rm -r output/; time ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -a test_files/mapping.txt
+	rm -r output/; time ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -a test_files/mapping.txt -t 2 -s 0.95 --grep-seqs
 
 test_lsa_no_mapping: td_matrix
 	rm -r output/; time ./lsa.rb -i test_files/*.faa.gz

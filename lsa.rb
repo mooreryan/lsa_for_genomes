@@ -13,15 +13,13 @@ require "trollop"
 include AbortIf
 Process.extend Aai::CoreExtensions::Process
 
-MAX_BIPLOT_TOPICS = 20
-
 module Aai
   extend Aai
   extend Aai::Utils
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.11.0-alpha"
+  PIPELINE_VERSION = "0.11.0"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -73,14 +71,18 @@ invisible(dev.off())
 }
 end
 
-def biplot_rscript svd_US_fname, svd_VS_fname, doc_names, pdf_fname
+def biplot_rscript svd_US_fname,
+                   svd_VS_fname,
+                   doc_names,
+                   pdf_fname,
+                   num_topics_for_biplots
   # Puts quotes around each doc name and joins on commas
   doc_names_str = doc_names.map { |str| %Q{"#{str}"} }.join(", ")
 
   %Q{
 num.topics <- function(US, VS)
 {
-    max.topics <- #{MAX_BIPLOT_TOPICS}
+    max.topics <- #{num_topics_for_biplots}
 
     ## Can have fewer topics calculated for the distance than the max
     ## possible topics.
@@ -435,6 +437,9 @@ opts = Trollop.options do
       "The maximum number of topics to use for distance calculation" +
       " (Use 0 for automatic.)",
       default: 0)
+  opt(:num_topics_for_biplots,
+      "The maximum number of topics to print for biplots",
+      default: 5)
   opt(:percent_of_terms_per_topic,
       "What percentage of top terms per topic do you want to look at?" +
       " (Use 0 for automatic)",
@@ -454,6 +459,7 @@ opts = Trollop.options do
   opt(:grep_seqs,
       "Put interesting peptides into their own fasta files",
       default: false)
+
 end
 
 tf_func_opts = ["tf_raw",
@@ -480,6 +486,12 @@ abort_unless Dir.exist?(opts[:binary_dir]),
 
 abort_unless opts[:num_topics] >= 0,
              "--num-topics must be >= 0"
+
+# TODO this is confusing that it can be more than num-topics. Also,
+# needs to technically be less than --num-topics if num-topics is not
+# set to automatic.
+abort_unless opts[:num_topics_for_biplots] >= 2
+             "--num-topics-for-biplots must be >= 2"
 
 ######################################################################
 # check commands
@@ -828,7 +840,8 @@ end
       f.puts biplot_rscript svd_US_fname,
                             svd_VS_fname,
                             doc_names,
-                            biplot_pdf_fname
+                            biplot_pdf_fname,
+                            opts[:num_topics_for_biplots]
     end
 
     Process.run_and_time_it! "Plotting biplots",
