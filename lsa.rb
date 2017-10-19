@@ -413,7 +413,7 @@ opts = Trollop.options do
       default: File.join(THIS_DIR, "bin"))
   opt(:mmseqs,
       "Location of the mmseqs binary",
-      default: File.join(Dir.home, "bin", "mmseqs"))
+      default: `which mmseqs`.chomp)
 
   opt(:infiles,
       "Files with ORFs",
