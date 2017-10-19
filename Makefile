@@ -1,7 +1,7 @@
 CC = gcc
 MKDIR_P = mkdir -p
 
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -std=c11
 LDFLAGS = -lz -lm
 
 VENDOR = vendor

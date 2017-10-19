@@ -11,6 +11,7 @@ bin/redsvd
 bin/td_matrix*
 bin/td_old*
 bin/*.dSYM
+Dockerfile
 Gemfile.lock
 lsa_cluster_tmp.*
 lsa_output
@@ -31,3 +32,4 @@ vendor/redsvd-0.2.0/bin
 vendor/redsvd-0.2.0/include
 vendor/redsvd-0.2.0/lib
 vendor/redsvd-0.2.0/redsvd_build
+vendor/MMseqs2
