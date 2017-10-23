@@ -1,5 +1,4 @@
 .git
-
 # Everything from the .gitignore file
 .DS_Store
 .Rhistory
