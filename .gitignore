@@ -11,6 +11,7 @@ bin/redsvd
 bin/td_matrix*
 bin/td_old*
 bin/*.dSYM
+build_docker
 Gemfile.lock
 lsa_cluster_tmp.*
 lsa_output
