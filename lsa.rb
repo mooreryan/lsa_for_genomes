@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.11.1"
+  PIPELINE_VERSION = "0.11.2"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -412,7 +412,7 @@ opts = Trollop.options do
       "Folder with the LSA scripts and binaries",
       default: File.join(THIS_DIR, "bin"))
   opt(:mmseqs,
-      "Location of the mmseqs binary."
+      "Location of the mmseqs binary.",
       default: File.join(Dir.home, "bin", "mmseqs"))
 
   opt(:infiles,
