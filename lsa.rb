@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.11.1-alpha"
+  PIPELINE_VERSION = "0.11.1"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -412,8 +412,8 @@ opts = Trollop.options do
       "Folder with the LSA scripts and binaries",
       default: File.join(THIS_DIR, "bin"))
   opt(:mmseqs,
-      "Location of the mmseqs binary",
-      default: `which mmseqs`.chomp)
+      "Location of the mmseqs binary."
+      default: File.join(Dir.home, "bin", "mmseqs"))
 
   opt(:infiles,
       "Files with ORFs",
@@ -459,7 +459,6 @@ opts = Trollop.options do
   opt(:grep_seqs,
       "Put interesting peptides into their own fasta files",
       default: false)
-
 end
 
 tf_func_opts = ["tf_raw",
