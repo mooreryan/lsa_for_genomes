@@ -1,0 +1,50 @@
+#!/usr/bin/perl -w
+
+use File::Spec;
+
+my @args = ();
+my $expand = 1;
+
+foreach my $arg (@ARGV) {
+    if ($arg =~ /^-/) { # arg is a flag
+
+        # push the flag onto the arg list
+        push @args, $arg;
+
+        # check if next arg should expand or not
+        if (
+            $arg eq "-c" || $arg eq "--cpus" ||
+            $arg eq "-u" || $arg eq "--num-topics" ||
+            $arg eq "-t" || $arg eq "--num-topics-for-biplots" ||
+            $arg eq "-p" || $arg eq "--percent-of-terms-per-topic" ||
+            $arg eq "-f" || $arg eq "--tf-func" ||
+            $arg eq "-d" || $arg eq "--idf-func" ||
+            $arg eq "-s" || $arg eq "--singleton-weight" ||
+            $arg eq "-g" || $arg eq "--grep-seqs" ||
+            $arg eq "-v" || $arg eq "--version" ||
+            $arg eq "-h" || $arg eq "--help") {
+
+            # Arg should not expand
+            $expand = 0;
+        } else {
+            # Arg should expand
+            $expand = 1;
+        }
+    } elsif ($expand) { # an arg that is a path, expand it
+        my $path = File::Spec->rel2abs($arg);
+        push @args, "\'$path\'";
+    } else { # an arg that is not a path and not a flag
+        push @args, "\'$arg\'";
+    }
+}
+
+my $img  = "mooreryan/lsa_for_genomes";
+my $lsa  = "/home/lsa_for_genomes/lsa.rb";
+my $pull = "docker pull $img";
+my $run  = "docker run -v \"\$HOME:\$HOME\" $img ruby $lsa @args";
+
+# print "\n\n\nRUNNING COMMAND: $pull\n\n\n";
+# system("$pull");
+
+print "\n\n\nRUNNING COMMAND: $run\n\n\n";
+exec("$run");
