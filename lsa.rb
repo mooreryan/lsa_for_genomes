@@ -1050,7 +1050,7 @@ box()
 axis(1)
 axis(2, las=1)
 title(xlab="Rank", line=2.5)
-title(ylab="Count", line=2.75)
+title(ylab="Distance", line=2.75)
 points(1:nrow(dat.with.centroid.sorted), dat.with.centroid.sorted$dist, col=rainbow(num.centroids)[dat.with.centroid.sorted$kcluster], pch=16, cex=0.8)
 invisible(dev.off())
 }
