@@ -30,9 +30,9 @@ RUN mv /opt/mmseqs/util/mmseqs_wrapper.sh /usr/local/bin/mmseqs
 
 RUN gem install bundler
 
-RUN \curl -sSL https://github.com/mooreryan/lsa_for_genomes/archive/v0.11.4.tar.gz \
+RUN \curl -sSL https://github.com/mooreryan/lsa_for_genomes/archive/v0.11.5.tar.gz \
     | tar -v -C /home -xz
-RUN mv /home/lsa_for_genomes-0.11.4 /home/lsa_for_genomes
+RUN mv /home/lsa_for_genomes-0.11.5 /home/lsa_for_genomes
 
 WORKDIR /home/lsa_for_genomes
 RUN bundle install
