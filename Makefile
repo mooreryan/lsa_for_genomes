@@ -49,6 +49,9 @@ test_pre:
 test_lsa: td_matrix redsvd process_svd
 	rm -r output/; ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -a test_files/mapping.txt -t 2 -s 0.95 --grep-seqs
 
+test_docker:
+	rm -r output/; bin/run_lsa -i test_files/*.faa.gz -a test_files/mapping.txt -t 2 -s 0.95 --grep-seqs
+
 test_lsa_no_mapping: td_matrix
 	rm -r output/; ./lsa.rb -i test_files/*.faa.gz
 
