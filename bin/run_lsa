@@ -11,6 +11,11 @@ foreach my $arg (@ARGV) {
         # push the flag onto the arg list
         push @args, $arg;
 
+        if ($arg eq "-m" || $arg eq "--mmseqs") {
+            print STDERR "ERROR -- when using the run_lsa wrapper, you CANNOT use the -m/--mmseqs option. It will be set automatically.\n";
+            exit(1);
+        }
+
         # check if next arg should expand or not
         if (
             $arg eq "-c" || $arg eq "--cpus" ||
@@ -41,7 +46,7 @@ foreach my $arg (@ARGV) {
 my $img  = "mooreryan/lsa_for_genomes";
 my $lsa  = "/home/lsa_for_genomes/lsa.rb";
 my $pull = "docker pull $img";
-my $run  = "docker run -v \"\$HOME:\$HOME\" $img ruby $lsa @args";
+my $run  = "docker run -v \"\$HOME:\$HOME\" $img ruby $lsa --mmseqs /usr/local/bin/mmseqs @args";
 
 print "\n\n\nRUNNING COMMAND: $pull\n\n\n";
 system("$pull");
