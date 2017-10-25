@@ -6,7 +6,7 @@ LSA for Genomes and Metagenomes...it's fun! The pipeline is still under active d
 
 ### Docker
 
-The LSA pipeline has a fair number of dependencies, so we recommend that you just use the Docker image. You [follow this link](https://www.docker.com/get-docker) to get Docker installed on your computer. See the section on [using LSA](#using-lsa) to see how to pull an image and run LSA with Docker. 
+The LSA pipeline has a fair number of dependencies, so we recommend that you just use the Docker image. You [follow this link](https://www.docker.com/get-docker) to get Docker installed on your computer. See the section on [using LSA](#using-lsa) to see how to pull an image and run LSA with Docker.
 
 ### From source
 
@@ -21,7 +21,7 @@ The pipleline has the following dependencies.
 You'll need to have interpreters for the following languages installed on your machine.
 
 - [Ruby](https://www.ruby-lang.org/es/) (Running the pipeline)
-- [Python](https://www.python.org/) (No wonky libraries, just Python itself to run the `waf` script to install `redsvd`)
+- [Python](https://www.python.org/) (No wonky libraries, just Python itself to run the `waf` script to install `redsvd`. *Note*: We have found MiniConda not to work with `waf`, but the system Python works fine.)
 - [R](https://www.r-project.org/) (For lots of random stuff)
 
 ##### RubyGems
@@ -59,7 +59,7 @@ $ Rscript -e "install.packages('ape', repos = 'http://cran.us.r-project.org')"
 
 #### Get the pipeline code
 
-Assuming you have met all the dependencies, you need to get the pipeline code. 
+Assuming you have met all the dependencies, you need to get the pipeline code.
 
 ##### Using git
 
@@ -94,7 +94,7 @@ $ git clone https://github.com/mooreryan/redsvd.git redsvd/
 
 ##### Install the ruby gems
 
-LSA needs specific versions of certain ruby gems. First you must have the bundler gem installed. Install it like so: 
+LSA needs specific versions of certain ruby gems. First you must have the bundler gem installed. Install it like so:
 
 ```
 $ gem install bundler
@@ -106,7 +106,7 @@ Then in the source directory run
 $ bundle install
 ```
 
-which will manage the ruby gems for you. 
+which will manage the ruby gems for you.
 
 *Note*: If you have other versions of the required ruby gems installed, this may break other ruby programs you have. In this case, I recommend you use something like [RVM](https://rvm.io) to manage Ruby and various gemsets.
 
@@ -136,7 +136,7 @@ The first thing you need to do is to call ORFs on your genomes or contigs. You s
 
 ### Mapping files
 
-Then you can make a metadata mapping file to do higher level groupings of data. The mapping file is a tab delimited text file with a header line. The first column must be "file name" and match the file names of your input files (without the directory part, e.g., if your file is `/home/mooreryan/orfs.faa`, then only put the `orfs.faa` part in column 1.) You can have as many additional columns as you wish. 
+Then you can make a metadata mapping file to do higher level groupings of data. The mapping file is a tab delimited text file with a header line. The first column must be "file name" and match the file names of your input files (without the directory part, e.g., if your file is `/home/mooreryan/orfs.faa`, then only put the `orfs.faa` part in column 1.) You can have as many additional columns as you wish.
 
 You can see an example [here](https://raw.githubusercontent.com/mooreryan/lsa_for_genomes/master/test_files/mapping.txt). This mapping file is for the three test genomes.
 
@@ -162,4 +162,4 @@ $ ./lsa.rb -m `which mmseqs` -i test_files/*.faa.gz -o output
 
 *Note*: In this case `mmseqs` was on my path already, so I could do the little backtick trick and pass that to `-m`.
 
-And you'll get a whole bunch of output. 
+And you'll get a whole bunch of output.

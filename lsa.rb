@@ -19,7 +19,7 @@ module Aai
 end
 
 module Lsa
-  PIPELINE_VERSION = "0.11.5"
+  PIPELINE_VERSION = "0.11.6"
   COPYRIGHT = "2017 Ryan Moore"
   CONTACT   = "moorer@udel.edu"
   WEBSITE   = "https://github.com/mooreryan/lsa_for_genomes"
@@ -1165,7 +1165,8 @@ invisible(dev.off())
   rscript_str = %Q{
 library("ape")
 
-proj.docs.dist <- as.dist(read.table("#{svd_VS_dis_fname_for_r}", header=T, sep=" "))
+## Doc names are become column headers here, so it may get an 'X' tagged on to the front'
+proj.docs.dist <- as.dist(dat <- read.table("#{svd_VS_dis_fname_for_r}", header=T, sep=" "))
 
 proj.docs.dist.tree <- as.phylo(hclust(proj.docs.dist, method="average"))
 
